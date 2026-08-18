@@ -43,7 +43,7 @@
   .chip.drl.active { background: var(--drl); border-color: var(--drl); color:#332600;}
   .chip.nlp.active { background: var(--nlp); border-color: var(--nlp); }
   .bar { display:flex; justify-content: space-between; align-items:center; gap:12px; margin: 14px 0; flex-wrap: wrap;}
-  .seg { display:flex; border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  .seg { display:flex; flex-wrap:wrap; border:1px solid var(--line); border-radius:10px; overflow:hidden; }
   .seg button { background: var(--surface); color: var(--muted); border:0; padding: 8px 16px; cursor:pointer; font-size:.85rem;}
   .seg button.active { background: var(--surface2); color: var(--ink); font-weight:600; }
   .stats { display:flex; gap:16px; font-size:.82rem; color: var(--muted);}
@@ -116,6 +116,13 @@
   .revq { margin-bottom:6px; }
   .revexp { margin-top:8px; padding:10px 12px; background:var(--surface2); border-left:3px solid var(--brand); border-radius:8px; font-size:.9rem; }
   h3 { font-size:1rem; }
+  .pgrid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+  .pcard { background:var(--surface2); border:1px solid var(--line); border-radius:12px; padding:14px; text-align:center; }
+  .pnum { font-size:1.5rem; font-weight:800; background:linear-gradient(90deg,var(--brand),var(--brand2)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .spark { display:flex; align-items:flex-end; gap:4px; height:90px; padding:6px; background:var(--surface2); border-radius:10px; }
+  .sbar { flex:1; min-width:6px; border-radius:3px 3px 0 0; background:var(--muted); align-self:flex-end; }
+  .sbar.g { background:var(--ok); } .sbar.y { background:var(--warn); } .sbar.r { background:var(--bad); }
+  @media(max-width:520px){ .pgrid{ grid-template-columns:repeat(2,1fr); } }
 </style>
 </head>
 <body>
@@ -132,6 +139,7 @@
       <button data-mode="flash">🃏 Flashcards</button>
       <button data-mode="practice">🔢 Practice</button>
       <button data-mode="exam">📄 Mock Exam</button>
+      <button data-mode="progress">📈 Progress</button>
     </div>
     <div class="stats">
       <span><span id="poslabel">Q</span> <b id="pos">0</b>/<b id="total">0</b></span>
@@ -628,7 +636,7 @@ function renderSubjects(){
 
 function updateStats(){
   const pl = document.getElementById("poslabel");
-  if(state.mode==="exam"){ return; }
+  if(state.mode==="exam" || state.mode==="progress"){ return; }
   if(state.mode==="practice"){
     if(pl) pl.textContent = "Solved";
     document.getElementById("pos").textContent = state.score;
@@ -669,6 +677,7 @@ function finish(){
 function render(){
   const stage = document.getElementById("stage");
   if(state.mode==="exam"){ renderExam(); return; }
+  if(state.mode==="progress"){ renderProgress(); return; }
   if(state.mode==="practice"){ renderPractice(); return; }
   if(!state.order.length){ stage.innerHTML = `<div class="card empty">No questions for this filter.</div>`; updateStats(); return; }
   if(state.idx >= state.order.length){ finish(); return; }
@@ -874,6 +883,10 @@ function submitExam(){
   stopExamTimer();
   state.exam.stage="results";
   state.exam.usedMs=Math.min(state.exam.durationMs, Date.now()-state.exam.startMs);
+  let ec=0; const et={};
+  state.exam.qs.forEach((qi,i)=>{ const it=BANK[qi], ok=state.exam.answers[i]===it.a; if(ok) ec++; const key=SUBJNAME[it.s]+" · "+it.t; et[key]=et[key]||{c:0,t:0}; et[key].t++; if(ok) et[key].c++; });
+  const tot=state.exam.qs.length;
+  saveExamRecord({ ts:Date.now(), subject:state.subject, count:tot, correct:ec, total:tot, pct:Math.round(ec/tot*100), usedMs:state.exam.usedMs, topics:et });
   renderExamResults();
 }
 
@@ -901,6 +914,7 @@ function renderExamResults(){
       <div class="score-big">${correct}/${total}</div>
       <h2>${pct}% &nbsp;·&nbsp; ⏱️ ${fmtTime(ex.usedMs)}</h2>
       <p class="hint">${msg}</p>
+      <p class="hint">✔ Saved to your <a href="#" id="goprog">📈 Progress</a> — track improvement over time.</p>
     </div>
     <div class="card" style="margin-top:16px">
       <h3 style="margin:0 0 10px">📊 By subject</h3>
@@ -919,6 +933,7 @@ function renderExamResults(){
     </div>`;
   document.getElementById("eretake").onclick=()=>{ state.exam={stage:"setup",count:total}; renderExamSetup(); };
   document.getElementById("edone").onclick=()=>{ state.exam=null; setMode("quiz"); };
+  const gp=document.getElementById("goprog"); if(gp) gp.onclick=(e)=>{ e.preventDefault(); setMode("progress"); };
   setExamBar(total,total);
   window.scrollTo({top:0,behavior:"smooth"});
   typeset(stage);
@@ -932,6 +947,78 @@ function setExamBar(done,total){
   document.getElementById("streak").textContent="—";
   document.getElementById("best").textContent=state.best;
   document.getElementById("pbar").style.width=(total?done/total*100:0)+"%";
+}
+
+/* ---- Exam history & progress ---- */
+function loadHistory(){ return (store.get().history)||[]; }
+function saveExamRecord(rec){
+  const g = store.get();
+  g.history = g.history || [];
+  g.history.push(rec);
+  if(g.history.length>200) g.history = g.history.slice(-200);
+  store.set(g);
+}
+
+function setProgressBar(hist){
+  const pl=document.getElementById("poslabel"); if(pl) pl.textContent="Exams";
+  document.getElementById("pos").textContent=hist.length;
+  document.getElementById("total").textContent=hist.length;
+  document.getElementById("score").textContent = hist.length? Math.max.apply(null,hist.map(h=>h.pct))+"%" : "—";
+  document.getElementById("streak").textContent="—";
+  document.getElementById("best").textContent=state.best;
+  document.getElementById("pbar").style.width=(hist.length?100:0)+"%";
+}
+
+function renderProgress(){
+  const stage=document.getElementById("stage");
+  const hist=loadHistory();
+  setProgressBar(hist);
+  if(!hist.length){
+    stage.innerHTML=`<div class="card empty">📈 No exam history yet.<br><br>Take a <b>📄 Mock Exam</b> and your scores + weak topics get tracked here so you can watch yourself improve.<div class="actions" style="justify-content:center;margin-top:18px"><span></span><button class="btn primary" id="goexam">Start a mock exam →</button></div></div>`;
+    document.getElementById("goexam").onclick=()=> setMode("exam");
+    return;
+  }
+  const n=hist.length;
+  const avg=Math.round(hist.reduce((s,h)=>s+h.pct,0)/n);
+  const best=Math.max.apply(null,hist.map(h=>h.pct));
+  const last=hist[n-1].pct;
+  const trend = n>=2 ? (last-hist[n-2].pct) : 0;
+  const trendTxt = n<2?"":(trend>0?`▲ +${trend}%`:trend<0?`▼ ${trend}%`:"▬ 0%");
+  const recent=hist.slice(-24);
+  const bars=recent.map(h=>{ const cls=h.pct>=70?'g':h.pct>=40?'y':'r'; const d=new Date(h.ts); return `<div class="sbar ${cls}" style="height:${Math.max(4,h.pct)}%" title="${d.toLocaleDateString()} · ${h.pct}% (${h.correct}/${h.total})"></div>`; }).join("");
+  const agg={};
+  hist.forEach(h=> Object.keys(h.topics||{}).forEach(k=>{ agg[k]=agg[k]||{c:0,t:0}; agg[k].c+=h.topics[k].c; agg[k].t+=h.topics[k].t; }));
+  const weak=Object.keys(agg).map(k=>({k,c:agg[k].c,t:agg[k].t,p:agg[k].c/agg[k].t})).sort((a,b)=> a.p-b.p || b.t-a.t).slice(0,12);
+  const weakRows=weak.length? weak.map(w=>`<tr><td>${w.k}</td><td>${w.c}/${w.t}</td><td><span class="pill ${w.p>=0.7?'g':w.p>=0.4?'y':'r'}">${Math.round(w.p*100)}%</span></td></tr>`).join("") : `<tr><td colspan="3" class="hint">No topic data yet.</td></tr>`;
+  const attempts=hist.slice().reverse().slice(0,15).map(h=>{ const d=new Date(h.ts); const subj=h.subject==="ALL"?"All":(SUBJNAME[h.subject]||h.subject); return `<tr><td>${d.toLocaleDateString()} ${d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</td><td>${subj}</td><td>${h.correct}/${h.total}</td><td><span class="pill ${h.pct>=70?'g':h.pct>=40?'y':'r'}">${h.pct}%</span></td><td>${fmtTime(h.usedMs)}</td></tr>`; }).join("");
+  stage.innerHTML=`
+    <div class="card">
+      <h3 style="margin:0 0 12px">📈 Your progress</h3>
+      <div class="pgrid">
+        <div class="pcard"><div class="pnum">${n}</div><div class="hint">exams taken</div></div>
+        <div class="pcard"><div class="pnum">${avg}%</div><div class="hint">average</div></div>
+        <div class="pcard"><div class="pnum">${best}%</div><div class="hint">best</div></div>
+        <div class="pcard"><div class="pnum">${last}%</div><div class="hint">last ${trendTxt}</div></div>
+      </div>
+      <div class="hint" style="margin:16px 0 6px">Score trend (last ${recent.length} exams)</div>
+      <div class="spark">${bars}</div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h3 style="margin:0 0 4px">🎯 Weak topics across all exams</h3>
+      <p class="hint" style="margin:0 0 10px">Aggregated over every attempt — revise the reds first.</p>
+      <table class="rtab"><tr><th>Topic</th><th>Cumulative</th><th>%</th></tr>${weakRows}</table>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h3 style="margin:0 0 10px">🗓️ Recent attempts</h3>
+      <table class="rtab"><tr><th>When</th><th>Subject</th><th>Score</th><th>%</th><th>Time</th></tr>${attempts}</table>
+      <div class="actions" style="margin-top:16px">
+        <button class="btn" id="pclear">🗑️ Clear history</button>
+        <button class="btn primary" id="pexam">📄 Take a mock exam</button>
+      </div>
+    </div>`;
+  document.getElementById("pexam").onclick=()=> setMode("exam");
+  document.getElementById("pclear").onclick=()=>{ if(confirm("Clear all saved exam history? This cannot be undone.")){ const g=store.get(); delete g.history; store.set(g); renderProgress(); } };
+  typeset(stage);
 }
 
 /* Mode toggle */
