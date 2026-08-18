@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BITS Sem-2 · Interactive Study App</title>
+<script>
+  window.MathJax = {
+    tex: { inlineMath: [['$', '$']], displayMath: [['$$', '$$']] },
+    svg: { fontCache: 'global' }
+  };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" async></script>
+<style>
+  :root {
+    --bg: #0f1420; --surface: #171e2e; --surface2: #1e2740; --line: #2b3552;
+    --ink: #e8ecf5; --muted: #97a3bd; --brand: #6c8cff; --brand2: #8b5cf6;
+    --ok: #34d399; --bad: #f87171; --warn: #fbbf24;
+    --aci: #6c8cff; --cv: #34d399; --drl: #fbbf24; --nlp: #f472b6;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: radial-gradient(1200px 600px at 80% -10%, #1b2440 0%, var(--bg) 60%);
+    color: var(--ink); min-height: 100vh; line-height: 1.55;
+  }
+  header {
+    padding: 20px 20px 10px; max-width: 900px; margin: 0 auto;
+  }
+  h1 { font-size: 1.4rem; margin: 0 0 2px; letter-spacing: .2px; }
+  .sub { color: var(--muted); font-size: .85rem; margin-bottom: 14px; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 0 20px 60px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .chip {
+    border: 1px solid var(--line); background: var(--surface); color: var(--muted);
+    padding: 6px 12px; border-radius: 999px; cursor: pointer; font-size: .82rem;
+    user-select: none; transition: .15s;
+  }
+  .chip:hover { border-color: var(--brand); color: var(--ink); }
+  .chip.active { background: var(--brand); border-color: var(--brand); color: #fff; font-weight: 600; }
+  .chip.aci.active { background: var(--aci); border-color: var(--aci); }
+  .chip.cv.active  { background: var(--cv);  border-color: var(--cv);  color:#06281c;}
+  .chip.drl.active { background: var(--drl); border-color: var(--drl); color:#332600;}
+  .chip.nlp.active { background: var(--nlp); border-color: var(--nlp); }
+  .bar { display:flex; justify-content: space-between; align-items:center; gap:12px; margin: 14px 0; flex-wrap: wrap;}
+  .seg { display:flex; border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  .seg button { background: var(--surface); color: var(--muted); border:0; padding: 8px 16px; cursor:pointer; font-size:.85rem;}
+  .seg button.active { background: var(--surface2); color: var(--ink); font-weight:600; }
+  .stats { display:flex; gap:16px; font-size:.82rem; color: var(--muted);}
+  .stats b { color: var(--ink); }
+  .progress { height:6px; background: var(--surface2); border-radius:99px; overflow:hidden; margin: 6px 0 18px;}
+  .progress > i { display:block; height:100%; width:0; background: linear-gradient(90deg,var(--brand),var(--brand2)); transition:.3s;}
+  .card {
+    background: var(--surface); border:1px solid var(--line); border-radius:16px;
+    padding: 22px; box-shadow: 0 10px 30px rgba(0,0,0,.25);
+  }
+  .tags { display:flex; gap:8px; margin-bottom:12px; font-size:.72rem; }
+  .tag { padding:3px 9px; border-radius:6px; background: var(--surface2); color: var(--muted); }
+  .tag.subj { color:#fff; font-weight:600; }
+  .q { font-size: 1.08rem; margin-bottom: 16px; }
+  .opts { display:flex; flex-direction:column; gap:10px; }
+  .opt {
+    text-align:left; border:1px solid var(--line); background: var(--surface2); color: var(--ink);
+    padding: 12px 14px; border-radius: 10px; cursor:pointer; font-size:.95rem; transition:.12s;
+    display:flex; gap:10px; align-items:flex-start;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--brand); transform: translateY(-1px); }
+  .opt .k { font-weight:700; color: var(--muted); min-width: 18px; }
+  .opt.correct { border-color: var(--ok); background: rgba(52,211,153,.14); }
+  .opt.wrong { border-color: var(--bad); background: rgba(248,113,113,.14); }
+  .opt:disabled { cursor: default; opacity: .95; }
+  .explain {
+    margin-top:16px; padding:14px 16px; border-left:3px solid var(--brand);
+    background: var(--surface2); border-radius: 8px; font-size:.92rem; display:none;
+  }
+  .explain.show { display:block; }
+  .explain .verdict { font-weight:700; margin-bottom:6px; }
+  .flashback { display:none; margin-top:16px; }
+  .prow { display:flex; gap:10px; margin-top:4px; flex-wrap:wrap; }
+  .ansinput { flex:1; min-width:160px; background: var(--surface2); border:1px solid var(--line); color: var(--ink); border-radius:10px; padding:12px 14px; font-size:1rem; }
+  .ansinput:focus { outline:none; border-color: var(--brand); }
+  .ansinput:disabled { opacity:.7; }
+  .actions { display:flex; justify-content:space-between; gap:10px; margin-top:18px; flex-wrap:wrap;}
+  .btn {
+    border:1px solid var(--line); background: var(--surface2); color: var(--ink);
+    padding: 10px 18px; border-radius:10px; cursor:pointer; font-size:.9rem; font-weight:600;
+  }
+  .btn.primary { background: var(--brand); border-color: var(--brand); color:#fff; }
+  .btn:hover { filter: brightness(1.1); }
+  .btn:disabled { opacity:.4; cursor:not-allowed; }
+  .empty { text-align:center; color: var(--muted); padding: 40px; }
+  .done { text-align:center; padding: 30px; }
+  .done h2 { margin:0 0 6px; }
+  .score-big { font-size: 2.4rem; font-weight:800; background:linear-gradient(90deg,var(--brand),var(--brand2)); -webkit-background-clip:text; background-clip:text; color:transparent;}
+  footer { text-align:center; color: var(--muted); font-size:.75rem; padding: 20px; }
+  a { color: var(--brand); }
+  .hint { color: var(--muted); font-size:.8rem; }
+  kbd { background:var(--surface2); border:1px solid var(--line); border-radius:5px; padding:1px 6px; font-size:.78rem;}
+  .examhead { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+  .examtimer { font-weight:800; font-variant-numeric:tabular-nums; font-size:1.05rem; }
+  .opt.selected { border-color: var(--brand); background: rgba(108,140,255,.16); }
+  .palette { display:flex; flex-wrap:wrap; gap:6px; margin-top:16px; }
+  .pcell { width:34px; height:34px; border-radius:8px; border:1px solid var(--line); background:var(--surface2); color:var(--muted); cursor:pointer; font-size:.8rem; }
+  .pcell.done { border-color: var(--brand); color: var(--ink); }
+  .pcell.cur { background: var(--brand); color:#fff; border-color: var(--brand); font-weight:700; }
+  .ecount { border:1px solid var(--line); background:var(--surface2); color:var(--ink); padding:10px 16px; border-radius:10px; cursor:pointer; font-weight:600; }
+  .ecount.sel { background: var(--brand); border-color: var(--brand); color:#fff; }
+  .rtab { width:100%; border-collapse:collapse; font-size:.9rem; }
+  .rtab th, .rtab td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); }
+  .rtab th { color: var(--muted); font-weight:600; }
+  .pill { padding:2px 10px; border-radius:999px; font-weight:700; font-size:.8rem; }
+  .pill.g { background: rgba(52,211,153,.18); color: var(--ok); }
+  .pill.y { background: rgba(251,191,36,.18); color: var(--warn); }
+  .pill.r { background: rgba(248,113,113,.18); color: var(--bad); }
+  .rev { padding:12px 0; border-bottom:1px solid var(--line); }
+  .revq { margin-bottom:6px; }
+  .revexp { margin-top:8px; padding:10px 12px; background:var(--surface2); border-left:3px solid var(--brand); border-radius:8px; font-size:.9rem; }
+  h3 { font-size:1rem; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🎓 BITS Sem-2 · Interactive Study</h1>
+  <div class="sub">Active-recall practice for ACI · Computer Vision · Deep RL · NLP — built from your class notes &amp; exam papers.</div>
+  <div class="row" id="subjects"></div>
+</header>
+
+<div class="wrap">
+  <div class="bar">
+    <div class="seg" id="mode">
+      <button data-mode="quiz" class="active">📝 Quiz</button>
+      <button data-mode="flash">🃏 Flashcards</button>
+      <button data-mode="practice">🔢 Practice</button>
+      <button data-mode="exam">📄 Mock Exam</button>
+    </div>
+    <div class="stats">
+      <span><span id="poslabel">Q</span> <b id="pos">0</b>/<b id="total">0</b></span>
+      <span>Score <b id="score">0</b></span>
+      <span>Streak <b id="streak">0</b>🔥</span>
+      <span>Best <b id="best">0</b></span>
+    </div>
+  </div>
+  <div class="progress"><i id="pbar"></i></div>
+
+  <div id="stage"></div>
+
+  <footer>
+    Tip: use <kbd>1</kbd>–<kbd>4</kbd> to answer, <kbd>Enter</kbd> to check, <kbd>Space</kbd> for next. Progress saves in your browser.
+    &nbsp;·&nbsp; <a id="reset" href="#">Reset progress</a>
+  </footer>
+</div>
+
+<script>
+/* ============================ QUESTION BANK ============================ */
+/* s=subject, t=topic, q=question, o=options, a=correct index, e=explanation */
+const BANK = [
+/* ---------------- ACI ---------------- */
+{s:"ACI",t:"Approaches to AI",q:`Which approach to defining AI does this course primarily adopt?`,
+ o:[`Thinking humanly (cognitive modelling)`,`Acting humanly (Turing Test)`,`Thinking rationally (laws of thought)`,`Acting rationally (rational agent)`],a:3,
+ e:`The course is built around the <b>rational agent</b>: for each percept sequence, choose the action expected to maximize the performance measure given the available information.`},
+{s:"ACI",t:"PEAS",q:`In the PEAS framework used to specify a task environment, the letters stand for:`,
+ o:[`Perception, Environment, Actions, State`,`Performance measure, Environment, Actuators, Sensors`,`Policy, Environment, Agent, Signal`,`Planning, Execution, Analysis, Sensing`],a:1,
+ e:`<b>PEAS</b> = Performance measure, Environment, Actuators, Sensors. Always start agent design by writing the PEAS, then classify the environment.`},
+{s:"ACI",t:"Environment types",q:`A game of <b>poker</b> is best characterised as:`,
+ o:[`Fully observable & deterministic`,`Partially observable & stochastic`,`Fully observable & stochastic`,`Partially observable & deterministic`],a:1,
+ e:`You cannot see opponents' cards (<b>partially observable</b>) and card draws are random (<b>stochastic</b>). Contrast with chess: fully observable &amp; deterministic.`},
+{s:"ACI",t:"Agent types",q:`Which agent keeps an internal state using a <i>transition model</i> and a <i>sensor model</i>?`,
+ o:[`Simple reflex agent`,`Model-based reflex agent`,`Goal-based agent`,`Utility-based agent`],a:1,
+ e:`A <b>model-based reflex agent</b> maintains internal state to handle partial observability, using a transition model (how the world evolves) and a sensor model (how percepts relate to state).`},
+{s:"ACI",t:"Uninformed search",q:`Which uninformed search is complete, optimal (unit cost) <b>and</b> uses only $O(bd)$ memory?`,
+ o:[`Breadth-First Search`,`Depth-First Search`,`Iterative Deepening Search`,`Uniform-Cost Search`],a:2,
+ e:`<b>IDS</b> combines BFS's completeness/optimality with DFS's linear $O(bd)$ memory. Re-expanding shallow nodes is cheap because the deepest level dominates the node count.`},
+{s:"ACI",t:"Uniform-Cost Search",q:`In Uniform-Cost Search, the goal test is applied:`,
+ o:[`When a node is generated`,`When a node is expanded (selected from the frontier)`,`Only at the initial state`,`Never — it stops at fixed depth`],a:1,
+ e:`UCS tests the goal on <b>expansion</b>, not generation. This lets a cheaper path to the same node replace an earlier one on the frontier, guaranteeing optimality with non-uniform costs.`},
+{s:"ACI",t:"A* optimality",q:`A* with <b>graph search</b> is guaranteed optimal when the heuristic is:`,
+ o:[`Admissible only`,`Consistent (monotone)`,`Zero everywhere`,`Any positive function`],a:1,
+ e:`Graph-search A* needs a <b>consistent</b> heuristic ($h(n) \\le c(n,a,n') + h(n')$). Merely admissible is enough only for tree search. Consistent ⟹ admissible.`},
+{s:"ACI",t:"Informed search",q:`Greedy best-first search expands the node that minimizes:`,
+ o:[`$g(n)$ — cost so far`,`$h(n)$ — estimated cost to goal`,`$g(n)+h(n)$`,`$g(n)-h(n)$`],a:1,
+ e:`Greedy uses only $h(n)$ → fast but not optimal/complete. A* uses $f(n)=g(n)+h(n)$, which is what makes it optimal with an admissible heuristic.`},
+{s:"ACI",t:"Local search",q:`Simulated Annealing accepts a <i>worse</i> move with probability:`,
+ o:[`$e^{-\\Delta E / T}$`,`$1/\\Delta E$`,`$\\gamma^{\\Delta E}$`,`$1 - \\varepsilon$`],a:0,
+ e:`SA accepts a worsening move with probability $P=e^{-\\Delta E/T}$. High temperature $T$ → explores freely; as $T\\to0$ it becomes greedy (exploit).`},
+{s:"ACI",t:"Genetic Algorithms",q:`In a GA using roulette-wheel selection, a chromosome is chosen with probability proportional to its:`,
+ o:[`Length`,`Fitness`,`Mutation rate`,`Age (generation number)`],a:1,
+ e:`Roulette-wheel: $p_i = f_i / \\sum_j f_j$ — fitter chromosomes get bigger slices. Crossover exploits good building blocks; <b>mutation</b> adds exploration/diversity.`},
+{s:"ACI",t:"Swarm intelligence",q:`In Ant Colony Optimization, what prevents premature convergence to a suboptimal path?`,
+ o:[`Crossover`,`Pheromone evaporation`,`Momentum`,`Backtracking`],a:1,
+ e:`Ants deposit <b>pheromone</b> proportional to solution quality; <b>evaporation</b> ($\\tau \\leftarrow (1-\\rho)\\tau + \\Delta\\tau$) forgets old trails so the colony keeps exploring.`},
+{s:"ACI",t:"Adversarial search",q:`Alpha-beta pruning, compared with plain minimax, returns:`,
+ o:[`A different (approximate) value, faster`,`The exact same value, faster`,`A better value, slower`,`Only the value for MAX nodes`],a:1,
+ e:`Alpha-beta returns the <b>identical minimax value</b> — it only skips branches that cannot affect the decision (prune when $\\alpha \\ge \\beta$). Good ordering → $O(b^{m/2})$.`},
+{s:"ACI",t:"Bayesian networks",q:`In a Bayesian network, the full joint distribution factorizes as:`,
+ o:[`$\\sum_i P(X_i)$`,`$\\prod_i P(X_i \\mid \\text{Parents}(X_i))$`,`$\\prod_i P(X_i)$`,`$\\max_i P(X_i)$`],a:1,
+ e:`A Bayes net exploits conditional independence: $P(X_1,\\dots,X_n)=\\prod_i P(X_i\\mid \\text{Parents}(X_i))$. Each node needs only its CPT given its parents.`},
+{s:"ACI",t:"HMM / Viterbi",q:`The Viterbi algorithm on an HMM computes:`,
+ o:[`The probability of the observation sequence`,`The most likely hidden state sequence`,`The transition matrix`,`The stationary distribution`],a:1,
+ e:`Viterbi (DP with max + backpointers) finds the <b>most likely hidden-state path</b>. Using a <i>sum</i> instead of <i>max</i> gives the Forward algorithm (sequence likelihood).`},
+{s:"ACI",t:"First-order logic",q:`In FOL, the universal quantifier $\\forall x$ most naturally pairs with which connective?`,
+ o:[`Conjunction $\\land$`,`Implication $\\Rightarrow$`,`Disjunction $\\lor$`,`Negation $\\lnot$`],a:1,
+ e:`Rule of thumb: <b>$\\forall$ pairs with $\\Rightarrow$</b> (e.g. $\\forall x\\,(Engineer(x)\\Rightarrow \\dots)$), while $\\exists$ pairs with $\\land$.`},
+{s:"ACI",t:"Tree vs graph search",q:`Graph search strongly outperforms tree search when the state space has:`,
+ o:[`A single unique path to the goal`,`Many repeated states / cycles`,`No goal state`,`Only unit-cost edges`],a:1,
+ e:`Graph search keeps an explored (closed) set so each state is expanded once. With <b>many repeated states/cycles</b> this avoids the exponential re-expansion that plagues tree search.`},
+
+/* ---------------- Computer Vision ---------------- */
+{s:"CV",t:"Nature of CV",q:`Computer vision is fundamentally which kind of problem?`,
+ o:[`A forward, well-posed problem`,`An inverse, under-constrained problem`,`A pure image-to-image mapping`,`A sorting problem`],a:1,
+ e:`Vision recovers a 3D model/description from a 2D image — the <b>inverse</b> of graphics — and it is <b>under-constrained</b> because depth is lost in projection (many 3D worlds map to one photo).`},
+{s:"CV",t:"Colour spaces",q:`To select all "red-ish" pixels robustly to lighting/shading, the best colour space is:`,
+ o:[`RGB`,`Grayscale`,`HSV (threshold the Hue)`,`BGR`],a:2,
+ e:`<b>HSV</b> separates colour (Hue) from brightness (Value), so a Hue-range threshold grabs a colour regardless of shading — hard in RGB where brightness is spread across all channels.`},
+{s:"CV",t:"Camera model",q:`Under perspective projection, a 3D point $(X,Y,Z)$ maps to image $x =$`,
+ o:[`$fXZ$`,`$f X / Z$`,`$X/f$`,`$fX + Z$`],a:1,
+ e:`$x = fX/Z,\\; y = fY/Z$. Because $Z$ is in the denominator, <b>farther objects appear smaller</b>.`},
+{s:"CV",t:"Calibration",q:`The intrinsic matrix $K$ (focal length, principal point) maps:`,
+ o:[`World → camera coordinates`,`Camera → pixel coordinates`,`Pixel → world coordinates`,`Image → frequency domain`],a:1,
+ e:`<b>Intrinsics $K$</b> map camera→pixel (fixed for a camera). <b>Extrinsics $[R|t]$</b> map world→camera and change with every shot.`},
+{s:"CV",t:"Sampling / aliasing",q:`The Nyquist criterion says to avoid aliasing you must sample at a rate:`,
+ o:[`Equal to the highest frequency`,`More than twice the highest frequency`,`Half the highest frequency`,`Independent of frequency`],a:1,
+ e:`Sample at <b>more than twice</b> the highest frequency present. Otherwise fine patterns alias into false coarse ones (moiré). Fix: low-pass (anti-alias) filter <i>before</i> downsampling.`},
+{s:"CV",t:"Interpolation",q:`When resizing a <b>segmentation label mask</b>, you should use:`,
+ o:[`Bilinear interpolation`,`Bicubic interpolation`,`Nearest-neighbour interpolation`,`Gaussian blur`],a:2,
+ e:`<b>Nearest-neighbour</b> preserves valid class IDs. Bilinear/bicubic would invent impossible in-between labels (e.g. class 2.5) on categorical data.`},
+{s:"CV",t:"Photometric transforms",q:`Gamma correction with $\\gamma < 1$ does what to an image?`,
+ o:[`Darkens mid-tones`,`Brightens mid-tones`,`Only changes geometry`,`Removes colour`],a:1,
+ e:`With normalized intensity, $g=f^{\\gamma}$. For $\\gamma<1$ mid-tones <b>brighten</b> (endpoints 0 and 1 stay fixed); $\\gamma>1$ darkens them.`},
+{s:"CV",t:"Convolution",q:`Convolution differs from correlation in that convolution first:`,
+ o:[`Normalizes the image`,`Flips (rotates 180°) the kernel`,`Converts to grayscale`,`Adds padding`],a:1,
+ e:`Convolution <b>flips the kernel</b> before the sliding multiply-add; correlation does not. For a <i>symmetric</i> kernel the two are identical.`},
+{s:"CV",t:"Gaussian smoothing",q:`Convolving with a Gaussian of $\\sigma_1=3$ then $\\sigma_2=4$ equals a single Gaussian with $\\sigma =$`,
+ o:[`$7$`,`$5$`,`$\\sqrt{7}$`,`$12$`],a:1,
+ e:`Gaussians compose as $\\sigma=\\sqrt{\\sigma_1^2+\\sigma_2^2}=\\sqrt{9+16}=\\sqrt{25}=5$.`},
+{s:"CV",t:"Canny edge detector",q:`Which Canny step thins wide gradient ridges down to single-pixel-wide edges?`,
+ o:[`Hysteresis thresholding`,`Non-maximum suppression`,`Gaussian smoothing`,`Histogram equalisation`],a:1,
+ e:`<b>Non-maximum suppression</b> keeps only local maxima along the gradient direction → 1-px edges. Hysteresis (high+low thresholds) then links them into curves.`},
+{s:"CV",t:"Harris corners",q:`For the Harris second-moment matrix $M$, a response $R>0$ with both eigenvalues large indicates a:`,
+ o:[`Flat region`,`Edge`,`Corner`,`Blob at infinite scale`],a:2,
+ e:`$R=\\det M - k\\,\\text{tr}^2 M$. Both eigenvalues large → $R>0$ → <b>corner</b>; one large → $R<0$ → edge; both small → flat. Harris is rotation-invariant but not scale-invariant.`},
+{s:"CV",t:"Object detection (IoU)",q:`Intersection-over-Union (IoU) between two boxes is:`,
+ o:[`overlap ÷ union area`,`union ÷ overlap area`,`overlap ÷ ground-truth area`,`box perimeter ratio`],a:0,
+ e:`$\\text{IoU} = \\frac{\\text{area of overlap}}{\\text{area of union}}$. A prediction is a True Positive if IoU ≥ threshold (commonly 0.5).`},
+{s:"CV",t:"Detectors",q:`Why are R-CNN-family detectors unsuitable for real-time use?`,
+ o:[`They cannot classify objects`,`They push many region proposals through a CNN (two-stage, slow)`,`They only work on grayscale`,`They need LiDAR`],a:1,
+ e:`R-CNNs are <b>two-stage</b>: propose many regions, then run a CNN on each → slow. <b>YOLO</b> is one-stage (single pass over a grid) → real-time.`},
+{s:"CV",t:"CNN arithmetic",q:`A conv layer with kernel 3, stride 2, padding 1 on a 21×21 input gives output size:`,
+ o:[`21×21`,`11×11`,`10×10`,`19×19`],a:1,
+ e:`$O=\\lfloor (W-K+2P)/S\\rfloor + 1 = \\lfloor(21-3+2)/2\\rfloor+1 = \\lfloor20/2\\rfloor+1 = 11$.`},
+{s:"CV",t:"CNN vs ViT",q:`Which statement about CNNs vs Vision Transformers is correct?`,
+ o:[`CNNs have a global receptive field from layer 1`,`ViTs are more translation-invariant by design`,`ViTs model long-range dependencies via self-attention and need more data`,`CNNs need more data than ViTs`],a:2,
+ e:`ViTs use <b>self-attention</b> → global receptive field from the first layer and direct long-range modelling, but weaker inductive bias → they need <b>more data</b>. CNNs are more translation-invariant and data-efficient.`},
+{s:"CV",t:"Segmentation (U-Net)",q:`U-Net's skip connections improve segmentation because they:`,
+ o:[`Reduce the number of parameters`,`Copy high-resolution encoder features to the decoder for sharp boundaries`,`Replace convolution with attention`,`Perform k-means clustering`],a:1,
+ e:`Skip connections carry fine spatial detail from encoder to decoder, recovering resolution lost during downsampling → <b>sharp, well-localized boundaries</b>.`},
+
+/* ---------------- Deep RL ---------------- */
+{s:"DRL",t:"What is RL",q:`Reinforcement learning is distinguished from supervised learning because it learns from:`,
+ o:[`Labelled input-output pairs`,`Evaluative feedback (reward) via trial and error`,`Unlabelled clustering`,`A fixed lookup table`],a:1,
+ e:`RL learns from a scalar <b>reward</b> signal by trial and error, with delayed consequences and its own actions shaping future data — no teacher gives the correct action.`},
+{s:"DRL",t:"Non-stationary bandits",q:`For a <b>non-stationary</b> bandit (action values drift over time), which estimate is better?`,
+ o:[`Sample-average (step $1/n$)`,`Constant step-size $\\alpha$`,`Both are identical`,`Neither converges`],a:1,
+ e:`A <b>constant step-size</b> gives an exponentially recency-weighted average → keeps adapting. Sample-average dilutes new data with stale early rewards.`},
+{s:"DRL",t:"Incremental update",q:`In $Q_{n+1} = Q_n + \\alpha\\,(R_n - Q_n)$, the term $(R_n - Q_n)$ is the:`,
+ o:[`Discount`,`Error (Target − OldEstimate)`,`Learning rate`,`Reward baseline`],a:1,
+ e:`The general form is NewEstimate ← OldEstimate + StepSize·(<b>Target − OldEstimate</b>). Here the target is the observed reward $R_n$.`},
+{s:"DRL",t:"ε-greedy",q:`With 2 actions and $\\varepsilon = 0.5$, what is $P(\\text{greedy action selected})$?`,
+ o:[`0.50`,`0.75`,`0.25`,`1.00`],a:1,
+ e:`$P(\\text{greedy}) = (1-\\varepsilon) + \\varepsilon/k = 0.5 + 0.5/2 = 0.75$. (Greedy chosen deliberately, or randomly picked among $k$ actions.)`},
+{s:"DRL",t:"UCB",q:`In UCB action selection, the exploration bonus $c\\sqrt{\\ln t / N_t(a)}$ is largest for actions that are:`,
+ o:[`Frequently tried`,`Rarely tried (small $N_t(a)$)`,`Highest-value`,`Terminal`],a:1,
+ e:`The bonus grows when $N_t(a)$ is small → UCB explores <b>under-sampled</b> actions by their <i>potential</i>, shrinking the bonus as they get tried.`},
+{s:"DRL",t:"Discounting",q:`Setting the discount factor $\\gamma = 0$ makes the agent:`,
+ o:[`Far-sighted (values all future reward equally)`,`Myopic (cares only about immediate reward)`,`Ignore rewards entirely`,`Diverge`],a:1,
+ e:`$G_t = \\sum_k \\gamma^k R_{t+k+1}$. With $\\gamma=0$ only $R_{t+1}$ counts (<b>myopic</b>); $\\gamma\\to1$ makes it far-sighted.`},
+{s:"DRL",t:"Bellman equations",q:`The Bellman <b>optimality</b> equation differs from the Bellman <b>expectation</b> equation by using:`,
+ o:[`A sum over policy actions instead of a max`,`A max over actions instead of a policy-weighted average`,`No discount factor`,`Only terminal states`],a:1,
+ e:`Expectation: $v_\\pi(s)=\\sum_a \\pi(a|s)\\dots$ (average under the policy). Optimality: $v_*(s)=\\max_a \\dots$ (value of the <b>best</b> action).`},
+{s:"DRL",t:"Dynamic programming",q:`Value iteration repeatedly applies which backup?`,
+ o:[`Bellman expectation (policy average)`,`Bellman optimality (max over actions)`,`Monte-Carlo return`,`Gradient descent on rewards`],a:1,
+ e:`Value iteration folds improvement into the update: $V_{k+1}(s)\\leftarrow \\max_a \\sum_{s'} p(s'|s,a)[r+\\gamma V_k(s')]$, converging to $v_*$.`},
+{s:"DRL",t:"Monte Carlo",q:`Monte-Carlo prediction differs from TD because MC:`,
+ o:[`Bootstraps from current estimates`,`Requires complete episodes and uses actual returns (no bootstrapping)`,`Needs the transition model`,`Only works for bandits`],a:1,
+ e:`<b>MC</b> averages actual returns $G_t$ from full episodes and does <i>not</i> bootstrap. TD updates online from estimates (bootstraps).`},
+{s:"DRL",t:"TD(0)",q:`The TD(0) target for updating $V(S_t)$ is:`,
+ o:[`$R_{t+1} + \\gamma V(S_{t+1})$`,`$G_t$ (full return)`,`$\\max_a Q(S_t,a)$`,`$R_{t+1}$ only`],a:0,
+ e:`TD(0): $V(S_t)\\leftarrow V(S_t) + \\alpha[\\,R_{t+1}+\\gamma V(S_{t+1}) - V(S_t)\\,]$. The bracket is the TD error $\\delta_t$.`},
+{s:"DRL",t:"SARSA vs Q-learning",q:`SARSA is ____-policy and Q-learning is ____-policy:`,
+ o:[`off ; on`,`on ; off`,`on ; on`,`off ; off`],a:1,
+ e:`<b>SARSA (on-policy)</b> uses the action actually taken: $Q(S',A')$. <b>Q-learning (off-policy)</b> uses the greedy action: $\\max_a Q(S',a)$.`},
+{s:"DRL",t:"Q-learning",q:`Q-learning's update target uses:`,
+ o:[`$Q(S_{t+1}, A_{t+1})$ — the next action actually chosen`,`$\\max_{a'} Q(S_{t+1}, a')$ — the best next action`,`$V(S_t)$`,`the full Monte-Carlo return`],a:1,
+ e:`Q-learning bootstraps toward $R + \\gamma \\max_{a'} Q(S',a')$, learning the optimal policy's values regardless of the behaviour policy → off-policy.`},
+{s:"DRL",t:"Bootstrapping",q:`"Bootstrapping" in RL means:`,
+ o:[`Learning only from complete episodes`,`Updating an estimate using other estimates`,`Randomly initializing weights`,`Using a simulator`],a:1,
+ e:`Bootstrapping = the update target contains a current <b>estimate</b> (e.g. $V(S_{t+1})$). Present in DP and TD; absent in Monte Carlo.`},
+{s:"DRL",t:"Function approximation",q:`In "semi-gradient" TD(0), the "semi" refers to the fact that we:`,
+ o:[`Use only half the features`,`Ignore the target's dependence on the weights when taking the gradient`,`Update every other step`,`Halve the learning rate`],a:1,
+ e:`We differentiate only the current estimate $\\hat v(S,\\mathbf w)$, treating the bootstrapped target $R+\\gamma\\hat v(S',\\mathbf w)$ as fixed → a <b>semi</b>-gradient.`},
+
+/* ---------------- NLP ---------------- */
+{s:"NLP",t:"Core challenge",q:`The central challenge that pervades every level of NLP is:`,
+ o:[`Slow hardware`,`Ambiguity`,`Lack of text data`,`Character encoding`],a:1,
+ e:`<b>Ambiguity</b> appears lexically ("bank"), syntactically ("I saw the man with the telescope"), and semantically/referentially — the same string has many meanings.`},
+{s:"NLP",t:"Morphology",q:`Mapping "better" → "good" and "was" → "be" is:`,
+ o:[`Stemming`,`Lemmatization`,`Tokenization`,`Stop-word removal`],a:1,
+ e:`<b>Lemmatization</b> uses a dictionary + POS to return the true base <i>lemma</i>. Stemming just chops suffixes crudely ("computing"→"comput") and may not yield a real word.`},
+{s:"NLP",t:"N-gram models",q:`A bigram model approximates the chain rule using which assumption?`,
+ o:[`Independence of all words`,`The Markov assumption (condition on the last word only)`,`Zipf's law`,`The bag-of-words assumption`],a:1,
+ e:`The <b>Markov assumption</b> limits history: $P(w_i\\mid w_1..w_{i-1}) \\approx P(w_i\\mid w_{i-1})$ for a bigram.`},
+{s:"NLP",t:"MLE estimation",q:`The maximum-likelihood bigram estimate is $P(w_i\\mid w_{i-1}) =$`,
+ o:[`$C(w_{i-1}, w_i) / C(w_{i-1})$`,`$C(w_{i-1}, w_i) / N$`,`$C(w_i) / C(w_{i-1})$`,`$C(w_{i-1}) / C(w_{i-1}, w_i)$`],a:0,
+ e:`Count the pair, divide by the count of the context word: $P(w_i\\mid w_{i-1}) = \\frac{C(w_{i-1},w_i)}{C(w_{i-1})}$.`},
+{s:"NLP",t:"Smoothing",q:`Laplace (add-1) smoothing changes the bigram estimate to:`,
+ o:[`$\\frac{C(w_{i-1},w_i)+1}{C(w_{i-1})+V}$`,`$\\frac{C(w_{i-1},w_i)}{C(w_{i-1})+1}$`,`$\\frac{C(w_{i-1},w_i)+1}{C(w_{i-1})}$`,`$\\frac{C(w_{i-1},w_i)}{V}$`],a:0,
+ e:`Add 1 to every count and add $V$ (vocabulary size) to the denominator: $\\frac{C+1}{C(w_{i-1})+V}$. It fixes zero probabilities but is a "blunt instrument".`},
+{s:"NLP",t:"Perplexity",q:`A lower perplexity on a test set means the language model is:`,
+ o:[`Worse (more surprised)`,`Better (less surprised)`,`Overfit by definition`,`Using a larger vocabulary`],a:1,
+ e:`Perplexity $= P(W)^{-1/N}$ is the weighted average branching factor. <b>Lower = better</b> (the model is less surprised by the test words).`},
+{s:"NLP",t:"TF-IDF",q:`The TF-IDF weight of the word "the", which appears in every document, is approximately:`,
+ o:[`Very high`,`Zero`,`Negative`,`Equal to its term frequency`],a:1,
+ e:`$\\text{idf}=\\log(N/\\text{df})$. If "the" is in all $N$ docs, $\\text{idf}=\\log(N/N)=0$, so TF-IDF = 0 — correctly discounting stop-words.`},
+{s:"NLP",t:"Cosine similarity",q:`Cosine similarity between two vectors measures their:`,
+ o:[`Euclidean distance`,`Angle (independent of magnitude)`,`Difference in length`,`Dot product only`],a:1,
+ e:`$\\cos(\\mathbf a,\\mathbf b)=\\frac{\\mathbf a\\cdot\\mathbf b}{\\lVert\\mathbf a\\rVert\\lVert\\mathbf b\\rVert}$ — the angle, so long and short vectors pointing the same way score 1.`},
+{s:"NLP",t:"word2vec",q:`The Skip-gram model is trained to predict:`,
+ o:[`The center word from its context`,`The context words from the center word`,`The next sentence`,`The POS tag`],a:1,
+ e:`<b>Skip-gram</b>: given the center word, predict surrounding context words (good for rare words). <b>CBOW</b> does the reverse (context → center).`},
+{s:"NLP",t:"Word analogies",q:`In a good embedding space, $v(\\text{king}) - v(\\text{man}) + v(\\text{woman}) \\approx$`,
+ o:[`$v(\\text{king})$`,`$v(\\text{queen})$`,`$v(\\text{woman})$`,`$0$`],a:1,
+ e:`The vector (king − man) encodes "royalty/gender offset"; adding it to woman lands near <b>queen</b>. Analogies work because relations are roughly linear directions.`},
+{s:"NLP",t:"HMM decoding",q:`On an HMM, the Forward algorithm computes ___ while Viterbi computes ___:`,
+ o:[`best path ; sequence likelihood`,`sequence likelihood ; best hidden path`,`both compute the best path`,`the transition matrix ; the emission matrix`],a:1,
+ e:`<b>Forward</b> sums over paths → total likelihood $P(O)$. <b>Viterbi</b> takes the max (with backpointers) → the single most-likely hidden state sequence.`},
+{s:"NLP",t:"PCFG parsing",q:`The probability of a parse tree under a PCFG is:`,
+ o:[`The sum of its rule probabilities`,`The product of the probabilities of all rules used`,`The max rule probability`,`Always 1`],a:1,
+ e:`Multiply the probability of every production fired: $P(\\text{tree}) = \\prod_r P(r)$. Probabilistic grammars rank competing parses to resolve ambiguity.`},
+{s:"NLP",t:"Word sense disambiguation",q:`The Simplified Lesk algorithm selects the sense whose dictionary gloss has the greatest:`,
+ o:[`Length`,`Overlap with the context words`,`Frequency in the corpus`,`Number of synonyms`],a:1,
+ e:`Lesk compares each sense's <b>gloss signature</b> with the target word's context words and picks the sense with maximum word overlap.`},
+{s:"NLP",t:"Transformers",q:`BERT is which type of Transformer, and what is it best suited for?`,
+ o:[`Decoder-only — text generation`,`Encoder-only — understanding tasks (classification, NER)`,`Encoder–decoder — translation`,`None — it is an RNN`],a:1,
+ e:`<b>BERT = encoder-only</b> → understanding/representations (classification, NER). GPT = decoder-only (generation); T5/BART = encoder–decoder (seq2seq).`},
+{s:"NLP",t:"RAG",q:`In a Retrieval-Augmented Generation system, relevant passages are typically found by:`,
+ o:[`Random sampling`,`Semantic similarity search over embeddings in a vector DB`,`Alphabetical ordering`,`Re-training the LLM per query`],a:1,
+ e:`RAG embeds the query and retrieves top-k chunks by <b>semantic similarity</b> (cosine) from a vector DB (optionally hybrid with keyword search), then conditions the LLM on them.`},
+{s:"NLP",t:"Prompt engineering",q:`"Few-shot" prompting means the prompt includes:`,
+ o:[`No examples, only a task description`,`Exactly one example`,`Several worked examples before the query`,`The model's weights`],a:2,
+ e:`Zero-shot = task description only; one-shot = a single example; <b>few-shot = several examples</b> for in-context learning (at the cost of a longer prompt).`},
+
+/* ---------------- ACI (extra) ---------------- */
+{s:"ACI",t:"Turing Test",q:`Which set of capabilities must a machine have to pass the standard Turing Test?`,
+ o:[`Only fast arithmetic`,`NLP, knowledge representation, automated reasoning, and machine learning`,`Computer vision and robotics only`,`A large lookup table`],a:1,
+ e:`The standard Turing Test needs NLP, knowledge representation, automated reasoning and ML. The <b>Total</b> Turing Test additionally needs computer vision and robotics (to perceive and manipulate).`},
+{s:"ACI",t:"Rationality",q:`A rational agent is <b>not</b> the same as an omniscient agent because rationality:`,
+ o:[`Requires knowing the outcome of every action in advance`,`Maximizes <i>expected</i> performance given current knowledge, not actual outcomes`,`Never makes mistakes`,`Ignores the performance measure`],a:1,
+ e:`Rationality maximizes <b>expected</b> performance from the evidence available so far. Omniscience (knowing actual outcomes) is impossible; a rational agent can still be unlucky.`},
+{s:"ACI",t:"Heuristics",q:`An <b>admissible</b> heuristic $h(n)$ is one that:`,
+ o:[`Never overestimates the true cost to the goal`,`Always overestimates the cost`,`Is always zero`,`Equals the branching factor`],a:0,
+ e:`Admissible: $0 \\le h(n) \\le h^*(n)$ — it never overestimates. This guarantees A* (tree search) returns an optimal solution.`},
+{s:"ACI",t:"BFS complexity",q:`The space complexity of Breadth-First Search is:`,
+ o:[`$O(bm)$`,`$O(bd)$`,`$O(b^d)$`,`$O(d)$`],a:2,
+ e:`BFS must store the whole frontier level, giving $O(b^d)$ space (and time). Its huge memory need is its main drawback — IDS fixes this with $O(bd)$ space.`},
+{s:"ACI",t:"Heuristic dominance",q:`If admissible heuristics satisfy $h_2(n) \\ge h_1(n)$ for all $n$, then:`,
+ o:[`$h_1$ expands fewer nodes`,`$h_2$ dominates and A* expands fewer nodes with it`,`They expand identical nodes`,`$h_2$ is inadmissible`],a:1,
+ e:`A larger (still admissible) heuristic is closer to the true cost, so it prunes more — <b>$h_2$ dominates</b>. You can combine several with $h=\\max(h_1,h_2)$.`},
+{s:"ACI",t:"Minimax",q:`In the minimax algorithm, a MAX node backs up the ___ of its children and a MIN node the ___:`,
+ o:[`min ; max`,`max ; min`,`sum ; product`,`average ; average`],a:1,
+ e:`MAX takes the <b>maximum</b> of child values (wants a high score); MIN takes the <b>minimum</b> (adversary wants it low). Values propagate up from terminal utilities.`},
+{s:"ACI",t:"CSP",q:`The Minimum-Remaining-Values (MRV) heuristic in CSP tells you to:`,
+ o:[`Assign the variable with the fewest legal values left`,`Assign the variable with the most legal values`,`Always assign left to right`,`Pick a random variable`],a:0,
+ e:`MRV picks the <b>most constrained</b> variable (fewest remaining legal values) to fail fast and prune the search tree early.`},
+{s:"ACI",t:"Problem formulation",q:`Which is NOT one of the five components used to formally define a search problem?`,
+ o:[`Initial state`,`Transition model`,`Learning rate`,`Goal test`],a:2,
+ e:`A problem = initial state, actions, transition model $RESULT(s,a)$, goal test, and path cost. "Learning rate" belongs to ML/RL, not classical search formulation.`},
+{s:"ACI",t:"State space",q:`For the 8-puzzle, the number of <i>reachable</i> states is:`,
+ o:[`$8!$`,`$9!$`,`$9!/2$`,`$2^9$`],a:2,
+ e:`Only half of the $9!$ permutations are reachable (parity is invariant under legal moves), giving $9!/2 = 181440$ reachable states.`},
+{s:"ACI",t:"Local search",q:`Plain hill climbing can get permanently stuck at all of the following EXCEPT:`,
+ o:[`A local maximum`,`A plateau`,`A ridge`,`The global maximum`],a:3,
+ e:`Hill climbing halts at local maxima, plateaus and ridges. Reaching the <b>global maximum</b> is success, not being stuck. Random restarts / SA help escape the traps.`},
+{s:"ACI",t:"Logic",q:`Resolution proves $KB \\models \\alpha$ by refutation: it adds $\\lnot\\alpha$, converts to CNF, and derives:`,
+ o:[`A tautology`,`The empty clause (a contradiction)`,`A Horn clause`,`A new axiom`],a:1,
+ e:`Proof by <b>refutation</b>: assume $\\lnot\\alpha$, and if resolution derives the <b>empty clause</b> (⟂, a contradiction), then $\\alpha$ is entailed.`},
+{s:"ACI",t:"Bounded rationality",q:`"Bounded rationality" refers to choosing the best action:`,
+ o:[`With unlimited computation`,`Given limited computational resources and knowledge`,`Ignoring the performance measure`,`Only in deterministic worlds`],a:1,
+ e:`Perfect rationality is often unachievable, so agents optimize the performance measure <b>subject to limited compute/knowledge</b> — designing the best program for the given machine.`},
+
+/* ---------------- CV (extra) ---------------- */
+{s:"CV",t:"Bit depth",q:`An 8-bit grayscale image can represent how many distinct intensity levels?`,
+ o:[`8`,`64`,`256`,`1024`],a:2,
+ e:`Bit depth = bits per pixel, so $2^8 = 256$ levels (0–255). Fewer levels cause visible <b>banding</b>.`},
+{s:"CV",t:"Grayscale",q:`The standard luma (grayscale) conversion weights the channels as:`,
+ o:[`Equal 1/3 each`,`$0.299R + 0.587G + 0.114B$`,`$0.5R + 0.5B$`,`$R + G + B$`],a:1,
+ e:`Human eyes are most sensitive to green, so luma $= 0.299R + 0.587G + 0.114B$ — green dominates the perceived brightness.`},
+{s:"CV",t:"Calibration",q:`The extrinsic parameters $[R\\,|\\,t]$ of a camera describe:`,
+ o:[`Focal length and principal point`,`The camera's pose (rotation + translation) in the world`,`Lens distortion coefficients`,`Sensor bit depth`],a:1,
+ e:`<b>Extrinsics</b> = rotation $R$ + translation $t$ mapping world→camera (change every shot). Intrinsics $K$ (focal length, principal point) map camera→pixels and are fixed.`},
+{s:"CV",t:"Geometric transforms",q:`An affine transformation is guaranteed to preserve:`,
+ o:[`Lengths and angles`,`Parallelism of lines`,`Depth ordering`,`Absolute pixel intensities`],a:1,
+ e:`Affine maps keep straight lines straight and <b>parallel lines parallel</b> (not lengths/angles). Perspective convergence needs a <b>homography</b> instead.`},
+{s:"CV",t:"Homogeneous coordinates",q:`Homogeneous coordinates (writing $p=[x,y,1]^\\top$) are used so that:`,
+ o:[`Images become grayscale`,`Translation becomes a single matrix multiplication with linear maps`,`Convolution is faster`,`Colors are separated`],a:1,
+ e:`With a 3×3 matrix and $p'=Hp$, <b>translation + linear motion</b> combine into one multiply, and composing transforms is just matrix products.`},
+{s:"CV",t:"Histogram equalisation",q:`Histogram equalisation improves contrast by using the ___ as an intensity remapping:`,
+ o:[`Fourier transform`,`Cumulative distribution function (CDF)`,`Gaussian kernel`,`Median filter`],a:1,
+ e:`It builds the <b>CDF</b> of intensities and uses the normalised CDF as a monotonic remap, spreading occupied values across the full range. CLAHE limits noise amplification.`},
+{s:"CV",t:"Edges",q:`An edge in an image corresponds to a location where the intensity's first derivative has:`,
+ o:[`A zero value`,`An extremum (peak)`,`A constant value`,`No definition`],a:1,
+ e:`Edges are rapid intensity changes → <b>extrema (peaks) of the first derivative</b>. (Equivalently, zero-crossings of the second derivative.)`},
+{s:"CV",t:"SIFT",q:`The key advantage of SIFT descriptors over Harris corners is that SIFT is also:`,
+ o:[`Faster to compute`,`Scale-invariant`,`Colour-based`,`Parameter-free`],a:1,
+ e:`Harris is rotation-invariant but <b>not scale-invariant</b>. SIFT detects keypoints across a scale-space (DoG pyramid) and builds a 128-D descriptor invariant to scale, rotation and illumination.`},
+{s:"CV",t:"RANSAC",q:`RANSAC robustly fits a model to data containing many outliers by:`,
+ o:[`Averaging all points`,`Repeatedly sampling a minimal set, fitting, and counting inliers`,`Sorting points by value`,`Using gradient descent`],a:1,
+ e:`RANSAC samples the minimal set (e.g. 2 points for a line), fits, counts inliers within a threshold, and keeps the model with the <b>most inliers</b> — outliers can't dominate.`},
+{s:"CV",t:"Loss functions",q:`For a classifier, the cross-entropy loss is:`,
+ o:[`$\\sum_c (y_c - \\hat y_c)^2$`,`$-\\sum_c y_c \\log \\hat y_c$`,`$\\sum_c |y_c - \\hat y_c|$`,`$\\max_c \\hat y_c$`],a:1,
+ e:`Cross-entropy $L=-\\sum_c y_c\\log\\hat y_c$ (with one-hot $y$ and softmax $\\hat y$) heavily penalizes confident wrong predictions.`},
+{s:"CV",t:"CNN pooling",q:`A max-pooling layer in a CNN primarily provides:`,
+ o:[`More parameters`,`Downsampling + small translation invariance`,`Colour correction`,`Higher resolution`],a:1,
+ e:`Pooling downsamples feature maps (reducing computation) and adds local <b>translation invariance</b>, while enlarging the effective receptive field.`},
+{s:"CV",t:"Self-supervised learning",q:`Which self-supervised method learns <b>without negative pairs</b>, using self-distillation from a momentum teacher?`,
+ o:[`SimCLR`,`MoCo`,`DINO`,`R-CNN`],a:2,
+ e:`<b>DINO</b> uses student–teacher self-distillation (no negatives, no labels). SimCLR and MoCo are contrastive (need negatives); MoCo adds a momentum encoder + queue.`},
+
+/* ---------------- DRL (extra) ---------------- */
+{s:"DRL",t:"Reward hypothesis",q:`The "reward hypothesis" in RL states that all goals can be described as:`,
+ o:[`Minimizing the number of states`,`Maximizing the expected cumulative reward`,`Following the shortest path`,`Copying an expert`],a:1,
+ e:`Everything we mean by goals is captured as <b>maximizing expected cumulative reward</b>. The reward says <i>what</i> to achieve, not <i>how</i> — mis-specified rewards get gamed.`},
+{s:"DRL",t:"Returns",q:`The return satisfies the recursion:`,
+ o:[`$G_t = R_{t+1} + \\gamma G_{t+1}$`,`$G_t = R_{t+1} \\cdot G_{t+1}$`,`$G_t = \\gamma R_{t+1}$`,`$G_t = R_{t+1} - G_{t+1}$`],a:0,
+ e:`$G_t = R_{t+1} + \\gamma R_{t+2} + \\dots = R_{t+1} + \\gamma G_{t+1}$. This recursive form underlies all the Bellman equations.`},
+{s:"DRL",t:"Policy",q:`A (stochastic) policy $\\pi(a\\mid s)$ is:`,
+ o:[`The reward for state $s$`,`The probability of taking action $a$ in state $s$`,`The value of state $s$`,`The transition probability`],a:1,
+ e:`A policy maps states to a probability distribution over actions: $\\pi(a\\mid s)=\\Pr(A_t=a\\mid S_t=s)$. RL improves the policy from experience.`},
+{s:"DRL",t:"Optimal policy",q:`For any finite MDP, the number of optimal policies is:`,
+ o:[`Exactly one, always`,`At least one (possibly several)`,`Zero in stochastic MDPs`,`Equal to the number of states`],a:1,
+ e:`There is <b>always at least one</b> optimal policy $\\pi_*$ (there can be ties, hence several). All optimal policies share the same optimal value function $v_*$.`},
+{s:"DRL",t:"Dynamic programming",q:`Policy Iteration alternates which two steps until convergence?`,
+ o:[`Sampling and averaging`,`Policy evaluation and policy improvement`,`Exploration and exploitation`,`Encoding and decoding`],a:1,
+ e:`Policy Iteration = evaluate $v_\\pi$ (Bellman expectation backups), then <b>improve</b> greedily w.r.t. $v_\\pi$; repeat until the policy stops changing → $\\pi_*$.`},
+{s:"DRL",t:"Exploration",q:`The exploration–exploitation dilemma is about balancing:`,
+ o:[`Speed vs memory`,`Trying new actions vs using the current best-known action`,`Bias vs variance`,`Training vs testing`],a:1,
+ e:`<b>Exploit</b> the action currently believed best vs <b>explore</b> to gather information that might reveal a better one. ε-greedy, UCB and optimistic init address it.`},
+{s:"DRL",t:"Optimistic init",q:`Setting optimistically high initial action-values (e.g. +5) encourages:`,
+ o:[`Early exploration of all actions (in stationary problems)`,`Faster exploitation`,`Larger discount factors`,`Off-policy learning`],a:0,
+ e:`Every action initially "disappoints" once tried, so even a greedy agent is driven to try them all — a one-time <b>exploration</b> boost that works for <i>stationary</i> problems.`},
+{s:"DRL",t:"Model-based vs free",q:`Dynamic Programming (value/policy iteration) differs from Monte Carlo and TD because DP:`,
+ o:[`Needs no model`,`Requires a known model of transitions and rewards`,`Cannot use a discount factor`,`Only works for bandits`],a:1,
+ e:`DP is <b>model-based</b> — it needs $p(s'\\mid s,a)$ and $r$. MC and TD are <b>model-free</b>, learning purely from sampled experience.`},
+{s:"DRL",t:"Deep Q-Networks",q:`Which two tricks stabilize training in a DQN?`,
+ o:[`Dropout and batch norm`,`Experience replay and a target network`,`Roulette selection and mutation`,`Beam search and pruning`],a:1,
+ e:`<b>Experience replay</b> breaks correlations and reuses data; a periodically-updated <b>target network</b> gives stable bootstrapping targets for the Q-learning loss.`},
+{s:"DRL",t:"Actor–Critic",q:`In an actor–critic method, the "critic" is responsible for:`,
+ o:[`Selecting actions`,`Estimating a value function to evaluate the actor's actions`,`Storing the replay buffer`,`Choosing the learning rate`],a:1,
+ e:`The <b>actor</b> updates the policy; the <b>critic</b> estimates a value function (used as a baseline/advantage) to reduce the variance of the policy-gradient updates.`},
+{s:"DRL",t:"Reward shaping",q:`In a continuing task, adding the same constant $c$ to every reward:`,
+ o:[`Always changes the optimal policy`,`Shifts all values by $c/(1-\\gamma)$ but leaves the optimal policy unchanged`,`Makes learning impossible`,`Sets $\\gamma = 0$`],a:1,
+ e:`A uniform additive constant rescales values by $c/(1-\\gamma)$ equally, so the <b>ordering of actions (the optimal policy) is unchanged</b> in continuing tasks.`},
+{s:"DRL",t:"TD vs MC",q:`Compared with Monte Carlo, TD learning can:`,
+ o:[`Only work with a known model`,`Learn online from incomplete episodes (it bootstraps)`,`Never converge`,`Only estimate action values`],a:1,
+ e:`TD bootstraps from the current estimate $V(S_{t+1})$, so it updates <b>every step</b> without waiting for the episode to end — unlike MC, which needs full returns.`},
+
+/* ---------------- NLP (extra) ---------------- */
+{s:"NLP",t:"Stemming",q:`A Porter stemmer applied to "computing" might output "comput". This shows stemming is:`,
+ o:[`Dictionary-based and always a real word`,`A crude rule-based suffix chopper`,`The same as lemmatization`,`Context-aware`],a:1,
+ e:`<b>Stemming</b> crudely strips suffixes by rules and may produce non-words ("comput"). <b>Lemmatization</b> uses a dictionary + POS to return a valid lemma.`},
+{s:"NLP",t:"Chain rule",q:`The probability of a word sequence $P(w_1,\\dots,w_n)$ by the chain rule equals:`,
+ o:[`$\\sum_i P(w_i)$`,`$\\prod_i P(w_i \\mid w_1,\\dots,w_{i-1})$`,`$\\prod_i P(w_i)$`,`$\\max_i P(w_i)$`],a:1,
+ e:`Chain rule: $P(w_1..w_n)=\\prod_i P(w_i\\mid w_1..w_{i-1})$. The Markov assumption then truncates the history to make it tractable.`},
+{s:"NLP",t:"Numerical stability",q:`Language-model sentence probabilities are computed in log space mainly to:`,
+ o:[`Make them larger`,`Avoid numerical underflow from multiplying many small probabilities`,`Remove the need for smoothing`,`Speed up tokenization`],a:1,
+ e:`Multiplying many probabilities underflows to 0 for long sentences; summing <b>logs</b> avoids underflow (and addition is faster than multiplication).`},
+{s:"NLP",t:"Backoff vs interpolation",q:`The difference between backoff and interpolation in n-gram models is:`,
+ o:[`Backoff mixes all orders; interpolation uses only one`,`Backoff falls back to a lower order when needed; interpolation always mixes orders`,`They are identical`,`Interpolation ignores unseen n-grams`],a:1,
+ e:`<b>Backoff</b> uses the highest available order and drops to a lower one only if unseen. <b>Interpolation</b> always blends unigram+bigram+trigram (weights tuned on held-out data).`},
+{s:"NLP",t:"OOV words",q:`Out-of-vocabulary words at test time are typically handled by:`,
+ o:[`Deleting the sentence`,`Mapping them to a special <UNK> token trained like a normal word`,`Assigning probability 1`,`Ignoring smoothing`],a:1,
+ e:`Rare/unknown words are replaced with <b>&lt;UNK&gt;</b> (open vocabulary), whose probability is estimated during training and used for any unseen word at decode time.`},
+{s:"NLP",t:"word2vec (CBOW)",q:`The CBOW variant of word2vec predicts:`,
+ o:[`Context words from the center word`,`The center word from its surrounding context`,`The next sentence`,`Document topics`],a:1,
+ e:`<b>CBOW</b> = Continuous Bag of Words: predict the center word from context (fast, good for frequent words). Skip-gram does the reverse.`},
+{s:"NLP",t:"Distributional hypothesis",q:`The distributional hypothesis ("know a word by the company it keeps") justifies:`,
+ o:[`Rule-based parsing`,`Representing word meaning from co-occurrence contexts (embeddings)`,`Deleting stop-words`,`Byte-pair encoding`],a:1,
+ e:`Words appearing in similar contexts have similar meanings → represent them as vectors from context statistics. This underlies TF-IDF and word2vec/GloVe embeddings.`},
+{s:"NLP",t:"Text classification",q:`Naïve Bayes classifies text using $\\hat c = \\arg\\max_c P(c)\\prod_i P(w_i\\mid c)$. The "naïve" assumption is:`,
+ o:[`Words are conditionally independent given the class`,`All classes are equally likely`,`The corpus is infinite`,`Words never repeat`],a:0,
+ e:`Naïve Bayes assumes <b>conditional independence of words given the class</b> (bag-of-words). It's "naïve" but works well for spam/sentiment; use add-1 smoothing on $P(w_i\\mid c)$.`},
+{s:"NLP",t:"NER",q:`Named Entity Recognition (NER) is the task of:`,
+ o:[`Translating sentences`,`Labelling spans as entities like PERSON, ORG, LOCATION, DATE`,`Counting words`,`Generating text`],a:1,
+ e:`NER is <b>sequence labelling</b> (often BIO tags) that marks entity spans (PERSON/ORG/LOCATION/DATE…). It's a building block for information extraction, QA and RAG.`},
+{s:"NLP",t:"Edit distance",q:`Minimum edit (Levenshtein) distance counts the fewest operations of type:`,
+ o:[`Insert, delete, substitute`,`Add, multiply, divide`,`Merge, split, sort`,`Push, pop, peek`],a:0,
+ e:`Levenshtein distance = fewest <b>insertions, deletions and substitutions</b> to transform one string into another, computed with a DP table. Used in spell-check and similarity.`},
+{s:"NLP",t:"Transformers",q:`The mechanism that lets a Transformer relate every token to every other token in parallel is:`,
+ o:[`Recurrence`,`Self-attention`,`Convolution`,`Pooling`],a:1,
+ e:`<b>Self-attention</b> computes weighted interactions between all token pairs simultaneously → captures long-range dependencies without the sequential bottleneck of RNNs.`},
+{s:"NLP",t:"Prompting",q:`"Zero-shot" prompting means the model is given:`,
+ o:[`Several labelled examples`,`Exactly one example`,`Only a task description, no examples`,`A fine-tuning dataset`],a:2,
+ e:`<b>Zero-shot</b> = task description only (no examples). One-shot adds a single example; few-shot adds several for in-context learning.`}
+];
+
+/* ===================== NUMERICAL PRACTICE GENERATORS ===================== */
+/* Each gen() returns {q, ans, tol, sol, unit?} with fresh random numbers every call. */
+function ri(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
+function pick(a){ return a[Math.floor(Math.random()*a.length)]; }
+function r2(x,d){ const p=Math.pow(10, d==null?4:d); return Math.round(x*p)/p; }
+
+const PRACTICE = [
+{s:"DRL",t:"ε-greedy probability",gen:()=>{ const k=ri(2,6), eps=pick([0.1,0.2,0.3,0.5]); const ans=1-eps+eps/k;
+  return {q:`An ε-greedy agent has $k=${k}$ actions and $\\varepsilon=${eps}$. What is the probability it picks the <b>greedy</b> action next? (4 dp)`,
+   ans, tol:0.001, sol:`$P(\\text{greedy})=1-\\varepsilon+\\dfrac{\\varepsilon}{k}=1-${eps}+\\dfrac{${eps}}{${k}}=${r2(ans,4)}$`}; }},
+{s:"DRL",t:"Discounted return",gen:()=>{ const g=pick([0.5,0.9]), n=ri(3,4), rs=[]; for(let i=0;i<n;i++) rs.push(ri(-2,6));
+  let ans=0; for(let i=0;i<n;i++) ans+=Math.pow(g,i)*rs[i];
+  const terms=rs.map((r,i)=> i===0?`${r}`:`${g}^{${i}}\\cdot${r}`).join(' + ');
+  return {q:`Rewards $[R_1..R_${n}]=[${rs.join(', ')}]$, discount $\\gamma=${g}$. Compute the return $G_0=\\sum_i \\gamma^{i}R_{i+1}$. (3 dp)`,
+   ans, tol:0.02, sol:`$G_0=${terms}=${r2(ans,3)}$`}; }},
+{s:"DRL",t:"Constant step-size Q",gen:()=>{ const a=pick([0.1,0.2,0.5]), n=ri(3,4), rs=[]; for(let i=0;i<n;i++) rs.push(ri(0,3));
+  let Q=0; const steps=[]; for(let i=0;i<n;i++){ const nq=Q+a*(rs[i]-Q); steps.push(`$Q_{${i+1}}=${r2(Q,3)}+${a}(${rs[i]}-${r2(Q,3)})=${r2(nq,4)}$`); Q=nq; }
+  return {q:`Start $Q_0=0$, step-size $\\alpha=${a}$, rewards $[${rs.join(', ')}]$. Using $Q_{n+1}=Q_n+\\alpha(R_n-Q_n)$, find $Q_${n}$. (3 dp)`,
+   ans:Q, tol:0.005, sol:steps.join('<br>')}; }},
+{s:"DRL",t:"Bellman expectation",gen:()=>{ const p1=pick([0.3,0.4,0.5,0.6]), p2=r2(1-p1,2), r1=ri(-2,5), rr=ri(-2,5), V1=ri(0,10), V2=ri(0,10), g=pick([0.8,0.9]);
+  const ans=p1*(r1+g*V1)+p2*(rr+g*V2);
+  return {q:`Policy goes to $s_1$ w.p. ${p1} and $s_2$ w.p. ${p2}. Rewards $r_1=${r1},\\,r_2=${rr}$; next-values $V(s_1)=${V1},\\,V(s_2)=${V2}$; $\\gamma=${g}$. Compute $V(s)$ (Bellman expectation). (3 dp)`,
+   ans, tol:0.005, sol:`$V(s)=${p1}(${r1}+${g}\\cdot${V1})+${p2}(${rr}+${g}\\cdot${V2})=${r2(ans,3)}$`}; }},
+{s:"DRL",t:"TD(0) update",gen:()=>{ const V=ri(0,10), R=ri(-2,5), Vn=ri(0,10), a=pick([0.1,0.2,0.5]), g=pick([0.9,1]);
+  const tgt=R+g*Vn, ans=V+a*(tgt-V);
+  return {q:`$V(S)=${V}$, reward $R=${R}$, $V(S')=${Vn}$, $\\alpha=${a}$, $\\gamma=${g}$. Apply TD(0): new $V(S)$? (3 dp)`,
+   ans, tol:0.005, sol:`TD target $=R+\\gamma V(S')=${R}+${g}\\cdot${Vn}=${r2(tgt,3)}$<br>$V(S)\\leftarrow ${V}+${a}(${r2(tgt,3)}-${V})=${r2(ans,3)}$`}; }},
+{s:"DRL",t:"UCB score",gen:()=>{ const Q=r2(pick([0.2,0.4,0.5,0.6,0.8]),2), N=ri(2,20), t=ri(50,500), c=pick([1,2]);
+  const bonus=c*Math.sqrt(Math.log(t)/N), ans=Q+bonus;
+  return {q:`An arm has $Q=${Q}$, was pulled $N=${N}$ times, step $t=${t}$, constant $c=${c}$. Compute its UCB score $Q+c\\sqrt{\\ln t / N}$. (3 dp)`,
+   ans, tol:0.01, sol:`Bonus $=${c}\\sqrt{\\ln ${t}/${N}}=${c}\\sqrt{${r2(Math.log(t),3)}/${N}}=${r2(bonus,3)}$<br>UCB $=${Q}+${r2(bonus,3)}=${r2(ans,3)}$`}; }},
+{s:"CV",t:"Gaussian σ composition",gen:()=>{ const s1=ri(2,8), s2=ri(2,8), ans=Math.sqrt(s1*s1+s2*s2);
+  return {q:`Convolve with a Gaussian $\\sigma_1=${s1}$, then $\\sigma_2=${s2}$. Equivalent single $\\sigma$? (3 dp)`,
+   ans, tol:0.01, sol:`$\\sigma=\\sqrt{\\sigma_1^2+\\sigma_2^2}=\\sqrt{${s1*s1}+${s2*s2}}=\\sqrt{${s1*s1+s2*s2}}=${r2(ans,3)}$`}; }},
+{s:"CV",t:"Conv output size",gen:()=>{ const K=pick([3,5,7]), S=pick([1,2]), P=ri(0,2), W=ri(16,64);
+  const ans=Math.floor((W-K+2*P)/S)+1;
+  return {q:`Conv layer: kernel $K=${K}$, stride $S=${S}$, padding $P=${P}$, input $${W}\\times${W}$. Output width? (integer)`,
+   ans, tol:0.5, sol:`$O=\\lfloor(W-K+2P)/S\\rfloor+1=\\lfloor(${W}-${K}+${2*P})/${S}\\rfloor+1=${ans}$`}; }},
+{s:"CV",t:"Intersection over Union",gen:()=>{ const w=ri(4,8), h=ri(4,8), dx=ri(1,w-1), dy=ri(1,h-1), w2=ri(4,8), h2=ri(4,8);
+  const bx2=dx+w2, by2=dy+h2, iw=Math.max(0,Math.min(w,bx2)-dx), ih=Math.max(0,Math.min(h,by2)-dy);
+  const inter=iw*ih, uni=w*h+w2*h2-inter, ans=inter/uni;
+  return {q:`Box A $=[0,0,${w},${h}]$, Box B $=[${dx},${dy},${bx2},${by2}]$ (as $[x_1,y_1,x_2,y_2]$). Compute IoU. (3 dp)`,
+   ans, tol:0.01, sol:`Intersection $=${iw}\\times${ih}=${inter}$; Union $=${w*h}+${w2*h2}-${inter}=${uni}$; IoU $=${inter}/${uni}=${r2(ans,3)}$`}; }},
+{s:"CV",t:"Gamma correction",gen:()=>{ const v=ri(20,240), g=pick([0.5,0.8,1.5,2.2]), norm=v/255, ans=Math.round(255*Math.pow(norm,g));
+  return {q:`Pixel value ${v} (0–255), gamma $\\gamma=${g}$. Output $=\\mathrm{round}(255\\,(v/255)^\\gamma)$? (integer)`,
+   ans, tol:1, sol:`$255\\times(${v}/255)^{${g}}=255\\times${r2(norm,3)}^{${g}}=${ans}$`}; }},
+{s:"NLP",t:"TF-IDF",gen:()=>{ const tf=ri(1,8), N=ri(6,20), df=ri(1,N), idf=Math.log10(N/df), ans=tf*idf;
+  return {q:`$tf=${tf}$, corpus $N=${N}$ docs, $df=${df}$. Compute TF-IDF $=tf\\times\\log_{10}(N/df)$. (3 dp)`,
+   ans, tol:0.01, sol:`$idf=\\log_{10}(${N}/${df})=${r2(idf,3)}$; TF-IDF $=${tf}\\times${r2(idf,3)}=${r2(ans,3)}$`}; }},
+{s:"NLP",t:"Laplace smoothing",gen:()=>{ const C=ri(0,5), Cctx=ri(C+2,14), V=ri(5,20), ans=(C+1)/(Cctx+V);
+  return {q:`Bigram count $C(w_{i-1},w_i)=${C}$, context $C(w_{i-1})=${Cctx}$, vocab $V=${V}$. Laplace prob $\\frac{C+1}{C(w_{i-1})+V}$? (4 dp)`,
+   ans, tol:0.001, sol:`$P=\\dfrac{${C}+1}{${Cctx}+${V}}=\\dfrac{${C+1}}{${Cctx+V}}=${r2(ans,4)}$`}; }},
+{s:"NLP",t:"Cosine similarity",gen:()=>{ const a=[ri(0,3),ri(0,3),ri(1,3)], b=[ri(0,3),ri(1,3),ri(0,3)];
+  const dot=a[0]*b[0]+a[1]*b[1]+a[2]*b[2], na=Math.sqrt(a[0]*a[0]+a[1]*a[1]+a[2]*a[2]), nb=Math.sqrt(b[0]*b[0]+b[1]*b[1]+b[2]*b[2]), ans=dot/(na*nb);
+  return {q:`Cosine similarity between $a=[${a.join(',')}]$ and $b=[${b.join(',')}]$? (3 dp)`,
+   ans, tol:0.01, sol:`$a\\cdot b=${dot}$; $\\|a\\|=${r2(na,3)},\\ \\|b\\|=${r2(nb,3)}$; $\\cos=\\dfrac{${dot}}{${r2(na,3)}\\times${r2(nb,3)}}=${r2(ans,3)}$`}; }},
+{s:"NLP",t:"Bigram MLE",gen:()=>{ const C=ri(1,8), Cctx=ri(C,15), ans=C/Cctx;
+  return {q:`$C(w_{i-1},w_i)=${C}$, $C(w_{i-1})=${Cctx}$. MLE bigram probability $P(w_i\\mid w_{i-1})$? (4 dp)`,
+   ans, tol:0.001, sol:`$P=\\dfrac{C(w_{i-1},w_i)}{C(w_{i-1})}=\\dfrac{${C}}{${Cctx}}=${r2(ans,4)}$`}; }},
+{s:"ACI",t:"Simulated annealing",gen:()=>{ const dE=ri(1,10), T=pick([1,2,5,10]), ans=Math.exp(-dE/T);
+  return {q:`SA: a move worsens the objective by $\\Delta E=${dE}$ at temperature $T=${T}$. Acceptance probability $e^{-\\Delta E/T}$? (4 dp)`,
+   ans, tol:0.001, sol:`$P=e^{-${dE}/${T}}=e^{-${r2(dE/T,3)}}=${r2(ans,4)}$`}; }},
+{s:"ACI",t:"Roulette selection",gen:()=>{ const n=ri(3,4), f=[]; for(let i=0;i<n;i++) f.push(ri(1,10)); const tot=f.reduce((x,y)=>x+y,0), ans=f[0]/tot;
+  return {q:`GA fitnesses $[${f.join(', ')}]$. Probability roulette-wheel selection picks the <b>first</b> chromosome? (4 dp)`,
+   ans, tol:0.001, sol:`$p_1=\\dfrac{f_1}{\\sum f}=\\dfrac{${f[0]}}{${tot}}=${r2(ans,4)}$`}; }},
+{s:"ACI",t:"A* evaluation",gen:()=>{ const g=ri(3,20), h=ri(1,15), ans=g+h;
+  return {q:`A* node: path cost $g(n)=${g}$, heuristic $h(n)=${h}$. Evaluation $f(n)=g(n)+h(n)$? (integer)`,
+   ans, tol:0.5, sol:`$f(n)=g(n)+h(n)=${g}+${h}=${ans}$`}; }}
+];
+
+/* ============================ APP LOGIC ============================ */
+const SUBJECTS = [
+  {id:"ALL", label:"All subjects", cls:""},
+  {id:"ACI", label:"ACI", cls:"aci"},
+  {id:"CV",  label:"Computer Vision", cls:"cv"},
+  {id:"DRL", label:"Deep RL", cls:"drl"},
+  {id:"NLP", label:"NLP", cls:"nlp"}
+];
+const SUBJCOLOR = {ACI:"var(--aci)",CV:"var(--cv)",DRL:"var(--drl)",NLP:"var(--nlp)"};
+const SUBJNAME  = {ACI:"ACI",CV:"Computer Vision",DRL:"Deep RL",NLP:"NLP"};
+
+const store = {
+  get(){ try{return JSON.parse(localStorage.getItem("bits_study")||"{}");}catch(e){return {};} },
+  set(o){ localStorage.setItem("bits_study", JSON.stringify(o)); }
+};
+
+let state = {
+  subject: "ALL",
+  mode: "quiz",
+  order: [],
+  idx: 0,
+  score: 0,
+  streak: 0,
+  attempts: 0,
+  curPractice: null,
+  exam: null,
+  answered: false,
+  best: (store.get().best)||0
+};
+
+function shuffle(a){ for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
+
+function pool(){
+  return BANK.map((q,i)=>({q,i})).filter(x=> state.subject==="ALL" || x.q.s===state.subject);
+}
+function buildOrder(){
+  state.order = shuffle(pool().map(x=>x.i));
+  state.idx = 0; state.score = 0; state.streak = 0; state.attempts = 0; state.answered=false;
+}
+
+function typeset(el){ if(window.MathJax&&MathJax.typesetPromise){ MathJax.typesetPromise([el]).catch(()=>{}); } }
+
+function renderSubjects(){
+  const box = document.getElementById("subjects");
+  box.innerHTML = "";
+  SUBJECTS.forEach(s=>{
+    const c = document.createElement("div");
+    c.className = "chip "+s.cls+(state.subject===s.id?" active":"");
+    const n = s.id==="ALL"?BANK.length:BANK.filter(q=>q.s===s.id).length;
+    c.textContent = s.label+" ("+n+")";
+    c.onclick = ()=>{ state.subject=s.id; buildOrder(); renderSubjects(); render(); };
+    box.appendChild(c);
+  });
+}
+
+function updateStats(){
+  const pl = document.getElementById("poslabel");
+  if(state.mode==="exam"){ return; }
+  if(state.mode==="practice"){
+    if(pl) pl.textContent = "Solved";
+    document.getElementById("pos").textContent = state.score;
+    document.getElementById("total").textContent = state.attempts;
+    document.getElementById("score").textContent = state.score;
+    document.getElementById("streak").textContent = state.streak;
+    document.getElementById("best").textContent = state.best;
+    const p = state.attempts? (state.score/state.attempts)*100 : 0;
+    document.getElementById("pbar").style.width = p+"%";
+    return;
+  }
+  if(pl) pl.textContent = "Q";
+  document.getElementById("pos").textContent = Math.min(state.idx+ (state.answered?1:0), state.order.length);
+  document.getElementById("total").textContent = state.order.length;
+  document.getElementById("score").textContent = state.score;
+  document.getElementById("streak").textContent = state.streak;
+  document.getElementById("best").textContent = state.best;
+  const pct = state.order.length? (state.idx/state.order.length)*100 : 0;
+  document.getElementById("pbar").style.width = pct+"%";
+}
+
+function finish(){
+  const stage = document.getElementById("stage");
+  const total = state.order.length;
+  const pct = total? Math.round(state.score/total*100) : 0;
+  let msg = pct>=85?"Outstanding! Exam-ready. 🏆":pct>=65?"Solid. Review the misses and go again. 💪":"Good start — revisit the notes, then retry. 📖";
+  stage.innerHTML = `<div class="card done">
+     <div class="score-big">${state.score}/${total}</div>
+     <h2>${pct}%</h2>
+     <p class="hint">${msg}</p>
+     <div class="actions" style="justify-content:center">
+       <button class="btn primary" id="again">🔁 Retry this set</button>
+     </div></div>`;
+  document.getElementById("again").onclick = ()=>{ buildOrder(); render(); };
+  updateStats();
+}
+
+function render(){
+  const stage = document.getElementById("stage");
+  if(state.mode==="exam"){ renderExam(); return; }
+  if(state.mode==="practice"){ renderPractice(); return; }
+  if(!state.order.length){ stage.innerHTML = `<div class="card empty">No questions for this filter.</div>`; updateStats(); return; }
+  if(state.idx >= state.order.length){ finish(); return; }
+
+  const item = BANK[state.order[state.idx]];
+  state.answered = false;
+  const isFlash = state.mode==="flash";
+
+  const optsHTML = item.o.map((o,k)=>`
+    <button class="opt" data-k="${k}" ${isFlash?'disabled':''}>
+      <span class="k">${String.fromCharCode(65+k)}</span><span>${o}</span>
+    </button>`).join("");
+
+  stage.innerHTML = `<div class="card">
+    <div class="tags">
+      <span class="tag subj" style="background:${SUBJCOLOR[item.s]};color:#0b1020">${SUBJNAME[item.s]}</span>
+      <span class="tag">${item.t}</span>
+    </div>
+    <div class="q">${item.q}</div>
+    <div class="opts">${optsHTML}</div>
+    <div class="explain" id="explain"></div>
+    <div class="actions">
+      <button class="btn" id="skip">${isFlash?'🔎 Show answer':'Skip →'}</button>
+      <button class="btn primary" id="next" ${isFlash?'':'disabled'}>Next →</button>
+    </div>
+  </div>`;
+
+  const explain = document.getElementById("explain");
+  function reveal(chosen){
+    if(state.answered) return;
+    state.answered = true;
+    const btns = stage.querySelectorAll(".opt");
+    btns.forEach(b=>{
+      const k = +b.dataset.k;
+      b.disabled = true;
+      if(k===item.a) b.classList.add("correct");
+      if(chosen!==null && k===chosen && chosen!==item.a) b.classList.add("wrong");
+    });
+    let verdict;
+    if(chosen===null){ verdict = `<span style="color:var(--warn)">Answer</span>`; }
+    else if(chosen===item.a){ verdict = `<span style="color:var(--ok)">&#10004; Correct</span>`; state.score++; state.streak++; if(state.score>state.best){state.best=state.score; const g=store.get(); g.best=state.best; store.set(g);} }
+    else { verdict = `<span style="color:var(--bad)">&#10008; Not quite</span>`; state.streak=0; }
+    explain.innerHTML = `<div class="verdict">${verdict} &nbsp;·&nbsp; Correct: <b>${String.fromCharCode(65+item.a)}</b></div>${item.e}`;
+    explain.classList.add("show");
+    document.getElementById("next").disabled = false;
+    typeset(explain);
+    updateStats();
+  }
+
+  stage.querySelectorAll(".opt").forEach(b=>{
+    b.onclick = ()=> reveal(+b.dataset.k);
+  });
+  document.getElementById("skip").onclick = ()=> reveal(null);
+  document.getElementById("next").onclick = ()=>{ state.idx++; render(); };
+
+  typeset(stage);
+  updateStats();
+}
+
+/* ---- Numerical practice mode ---- */
+function practicePool(){ return PRACTICE.filter(p=> state.subject==="ALL" || p.s===state.subject); }
+
+function renderPractice(){
+  const stage = document.getElementById("stage");
+  const pooled = practicePool();
+  if(!pooled.length){ stage.innerHTML = `<div class="card empty">No numeric practice for this subject — try another filter.</div>`; updateStats(); return; }
+  const genObj = pick(pooled);
+  const p = genObj.gen();
+  state.curPractice = p; state.answered = false;
+  stage.innerHTML = `<div class="card">
+    <div class="tags">
+      <span class="tag subj" style="background:${SUBJCOLOR[genObj.s]};color:#0b1020">${SUBJNAME[genObj.s]}</span>
+      <span class="tag">${genObj.t}</span>
+      <span class="tag">🔢 solve it</span>
+    </div>
+    <div class="q">${p.q}</div>
+    <div class="prow">
+      <input id="ans" class="ansinput" type="text" inputmode="decimal" placeholder="Type your answer, then Check…" autocomplete="off">
+      <button class="btn primary" id="check">Check</button>
+    </div>
+    <div class="explain" id="explain"></div>
+    <div class="actions">
+      <button class="btn" id="showsol">💡 Show solution</button>
+      <button class="btn primary" id="newp">New problem →</button>
+    </div>
+  </div>`;
+  const input = document.getElementById("ans");
+  const explain = document.getElementById("explain");
+  function judge(reveal){
+    if(state.answered) return;
+    const raw = input.value.trim();
+    if(!reveal && raw===""){ input.focus(); return; }
+    state.answered = true; state.attempts++;
+    const user = parseFloat(raw.replace(/,/g,""));
+    const tol = Math.max(p.tol||0.01, Math.abs(p.ans)*0.005);
+    const correct = !reveal && isFinite(user) && Math.abs(user - p.ans) <= tol;
+    let verdict;
+    if(reveal){ verdict = `<span style="color:var(--warn)">Solution</span>`; state.streak = 0; }
+    else if(correct){ verdict = `<span style="color:var(--ok)">&#10004; Correct</span>`; state.score++; state.streak++; if(state.score>state.best){ state.best=state.score; const gg=store.get(); gg.best=state.best; store.set(gg); } }
+    else { verdict = `<span style="color:var(--bad)">&#10008; Not quite</span>`; state.streak = 0; }
+    explain.innerHTML = `<div class="verdict">${verdict} &nbsp;·&nbsp; Answer: <b>${r2(p.ans,4)}</b>${p.unit?(" "+p.unit):""}</div>${p.sol}`;
+    explain.classList.add("show");
+    input.disabled = true; document.getElementById("check").disabled = true;
+    typeset(explain); updateStats();
+  }
+  document.getElementById("check").onclick = ()=> judge(false);
+  document.getElementById("showsol").onclick = ()=> judge(true);
+  document.getElementById("newp").onclick = ()=> renderPractice();
+  input.addEventListener("keydown", ev=>{ if(ev.key==="Enter"){ ev.preventDefault(); judge(false); } });
+  input.focus();
+  typeset(stage);
+  updateStats();
+}
+
+/* ---- Mock exam mode ---- */
+function examPool(){ return BANK.map((q,i)=>i).filter(i => state.subject==="ALL" || BANK[i].s===state.subject); }
+function stopExamTimer(){ if(state.exam && state.exam.timerId){ clearInterval(state.exam.timerId); state.exam.timerId=null; } }
+function fmtTime(ms){ const s=Math.floor(ms/1000), m=Math.floor(s/60), ss=s%60; return m+":"+String(ss).padStart(2,"0"); }
+
+function renderExam(){
+  const ex = state.exam;
+  if(!ex || ex.stage==="setup") return renderExamSetup();
+  if(ex.stage==="results") return renderExamResults();
+  return renderExamQuestion();
+}
+
+function renderExamSetup(){
+  const stage = document.getElementById("stage");
+  const avail = examPool().length;
+  let counts = [10,15,20,30].filter(c=> c<=avail);
+  if(!counts.length) counts=[avail];
+  if(!state.exam || state.exam.stage!=="setup") state.exam = { stage:"setup", count: counts[Math.min(1,counts.length-1)] };
+  if(!counts.includes(state.exam.count)) state.exam.count=counts[0];
+  const chips = counts.map(c=>`<button class="ecount ${state.exam.count===c?'sel':''}" data-c="${c}">${c} Q</button>`).join("");
+  const mins = Math.round(state.exam.count*1.5);
+  const subjLabel = state.subject==="ALL"?"all subjects":SUBJNAME[state.subject];
+  stage.innerHTML = `<div class="card">
+    <div class="tags"><span class="tag subj" style="background:var(--brand);color:#0b1020">📄 Mock Exam</span><span class="tag">${state.subject==="ALL"?"All subjects":SUBJNAME[state.subject]}</span></div>
+    <div class="q">Timed mock exam — answer everything, then get a full report with your <b>weakest topics</b> highlighted so you know exactly what to revise.</div>
+    <p class="hint">Choose length (≈1.5 min/question). No feedback until you submit — just like the real exam.</p>
+    <div class="row" id="ecounts" style="margin:14px 0">${chips}</div>
+    <p class="hint">⏱️ Duration: <b>${mins} min</b> · ${avail} questions available for ${subjLabel}</p>
+    <div class="actions"><span></span><button class="btn primary" id="estart">Start exam →</button></div>
+  </div>`;
+  document.getElementById("ecounts").onclick = (e)=>{ const b=e.target.closest(".ecount"); if(!b) return; state.exam.count=+b.dataset.c; renderExamSetup(); };
+  document.getElementById("estart").onclick = ()=> startExam(state.exam.count);
+  setExamBar(0, state.exam.count);
+  typeset(stage);
+}
+
+function startExam(count){
+  const qs = shuffle(examPool()).slice(0, count);
+  state.exam = { stage:"running", qs, answers:new Array(qs.length).fill(null), idx:0, startMs:Date.now(), durationMs:count*90*1000, timerId:null };
+  state.exam.timerId = setInterval(examTick, 1000);
+  renderExamQuestion();
+}
+
+function examRemaining(){ const ex=state.exam; return Math.max(0, ex.durationMs-(Date.now()-ex.startMs)); }
+function examTick(){
+  const el=document.getElementById("examtimer"); const rem=examRemaining();
+  if(el){ el.textContent="⏱️ "+fmtTime(rem); el.style.color = rem<60000?"var(--bad)":"var(--ink)"; }
+  if(rem<=0) submitExam();
+}
+
+function renderExamQuestion(){
+  const ex=state.exam, stage=document.getElementById("stage");
+  const item=BANK[ex.qs[ex.idx]], chosen=ex.answers[ex.idx];
+  const opts=item.o.map((o,k)=>`<button class="opt ${chosen===k?'selected':''}" data-k="${k}"><span class="k">${String.fromCharCode(65+k)}</span><span>${o}</span></button>`).join("");
+  const pal=ex.qs.map((_,i)=>`<button class="pcell ${i===ex.idx?'cur':''} ${ex.answers[i]!==null?'done':''}" data-i="${i}">${i+1}</button>`).join("");
+  const answeredN=ex.answers.filter(a=>a!==null).length;
+  stage.innerHTML = `<div class="card">
+    <div class="examhead">
+      <div class="tags"><span class="tag subj" style="background:${SUBJCOLOR[item.s]};color:#0b1020">${SUBJNAME[item.s]}</span><span class="tag">Q${ex.idx+1} / ${ex.qs.length}</span></div>
+      <div id="examtimer" class="examtimer">⏱️ ${fmtTime(examRemaining())}</div>
+    </div>
+    <div class="q">${item.q}</div>
+    <div class="opts">${opts}</div>
+    <div class="palette">${pal}</div>
+    <div class="actions">
+      <button class="btn" id="eprev" ${ex.idx===0?'disabled':''}>← Prev</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" id="esubmit">Submit (${answeredN}/${ex.qs.length}) ✔</button>
+        <button class="btn primary" id="enext">${ex.idx===ex.qs.length-1?'Finish →':'Next →'}</button>
+      </div>
+    </div>
+  </div>`;
+  stage.querySelectorAll(".opt").forEach(b=> b.onclick=()=>{ ex.answers[ex.idx]=+b.dataset.k; renderExamQuestion(); });
+  stage.querySelectorAll(".pcell").forEach(b=> b.onclick=()=>{ ex.idx=+b.dataset.i; renderExamQuestion(); });
+  document.getElementById("eprev").onclick=()=>{ if(ex.idx>0){ ex.idx--; renderExamQuestion(); } };
+  document.getElementById("enext").onclick=()=>{ if(ex.idx<ex.qs.length-1){ ex.idx++; renderExamQuestion(); } else confirmSubmit(); };
+  document.getElementById("esubmit").onclick=()=> confirmSubmit();
+  setExamBar(answeredN, ex.qs.length);
+  typeset(stage);
+}
+
+function confirmSubmit(){
+  const un=state.exam.answers.filter(a=>a===null).length;
+  if(un>0 && !confirm(un+" question(s) still unanswered. Submit and see your report?")) return;
+  submitExam();
+}
+
+function submitExam(){
+  stopExamTimer();
+  state.exam.stage="results";
+  state.exam.usedMs=Math.min(state.exam.durationMs, Date.now()-state.exam.startMs);
+  renderExamResults();
+}
+
+function renderExamResults(){
+  const ex=state.exam, stage=document.getElementById("stage");
+  let correct=0; const bySubj={}, byTopic={}, review=[];
+  ex.qs.forEach((qi,i)=>{
+    const item=BANK[qi], chosen=ex.answers[i], ok=chosen===item.a;
+    if(ok) correct++;
+    bySubj[item.s]=bySubj[item.s]||{c:0,t:0}; bySubj[item.s].t++; if(ok) bySubj[item.s].c++;
+    const key=SUBJNAME[item.s]+" · "+item.t; byTopic[key]=byTopic[key]||{c:0,t:0}; byTopic[key].t++; if(ok) byTopic[key].c++;
+    review.push({item, chosen, ok});
+  });
+  const total=ex.qs.length, pct=Math.round(correct/total*100);
+  const msg = pct>=85?"Outstanding — exam-ready! 🏆":pct>=65?"Solid pass. Tighten the weak topics below. 💪":"Keep going — focus on the red topics below. 📖";
+  const subjRows=Object.keys(bySubj).map(s=>{ const d=bySubj[s], p=Math.round(d.c/d.t*100); return `<tr><td>${SUBJNAME[s]}</td><td>${d.c}/${d.t}</td><td><span class="pill ${p>=70?'g':p>=40?'y':'r'}">${p}%</span></td></tr>`; }).join("");
+  const weak=Object.keys(byTopic).map(k=>({k,c:byTopic[k].c,t:byTopic[k].t,p:byTopic[k].c/byTopic[k].t})).sort((a,b)=> a.p-b.p || b.t-a.t);
+  const weakRows=weak.map(w=>`<tr><td>${w.k}</td><td>${w.c}/${w.t}</td><td><span class="pill ${w.p>=0.7?'g':w.p>=0.4?'y':'r'}">${Math.round(w.p*100)}%</span></td></tr>`).join("");
+  const reviewHTML=review.map((r,i)=>`<div class="rev ${r.ok?'ok':'bad'}">
+      <div class="revq"><b>Q${i+1}.</b> ${r.item.q} &nbsp;<span class="tag">${SUBJNAME[r.item.s]} · ${r.item.t}</span></div>
+      <div class="hint">Your answer: <b>${r.chosen===null?'— (blank)':String.fromCharCode(65+r.chosen)+') '+r.item.o[r.chosen]}</b> ${r.ok?'&#10004;':'&#10008; · Correct: <b>'+String.fromCharCode(65+r.item.a)+') '+r.item.o[r.item.a]+'</b>'}</div>
+      ${r.ok?'':'<div class="revexp">'+r.item.e+'</div>'}
+    </div>`).join("");
+  stage.innerHTML = `<div class="card done">
+      <div class="score-big">${correct}/${total}</div>
+      <h2>${pct}% &nbsp;·&nbsp; ⏱️ ${fmtTime(ex.usedMs)}</h2>
+      <p class="hint">${msg}</p>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h3 style="margin:0 0 10px">📊 By subject</h3>
+      <table class="rtab"><tr><th>Subject</th><th>Score</th><th>%</th></tr>${subjRows}</table>
+      <h3 style="margin:18px 0 10px">🎯 Topics — weakest first (revise these)</h3>
+      <table class="rtab"><tr><th>Topic</th><th>Score</th><th>%</th></tr>${weakRows}</table>
+      <div class="actions" style="margin-top:16px">
+        <button class="btn" id="eretake">🔁 Retake</button>
+        <button class="btn primary" id="edone">Back to study</button>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h3 style="margin:0 0 4px">📝 Full review</h3>
+      <p class="hint" style="margin:0 0 12px">Every wrong answer includes its explanation.</p>
+      ${reviewHTML}
+    </div>`;
+  document.getElementById("eretake").onclick=()=>{ state.exam={stage:"setup",count:total}; renderExamSetup(); };
+  document.getElementById("edone").onclick=()=>{ state.exam=null; setMode("quiz"); };
+  setExamBar(total,total);
+  window.scrollTo({top:0,behavior:"smooth"});
+  typeset(stage);
+}
+
+function setExamBar(done,total){
+  const pl=document.getElementById("poslabel"); if(pl) pl.textContent="Exam";
+  document.getElementById("pos").textContent=done;
+  document.getElementById("total").textContent=total;
+  document.getElementById("score").textContent="—";
+  document.getElementById("streak").textContent="—";
+  document.getElementById("best").textContent=state.best;
+  document.getElementById("pbar").style.width=(total?done/total*100:0)+"%";
+}
+
+/* Mode toggle */
+function setMode(m){
+  if(state.mode==="exam" && m!=="exam"){ stopExamTimer(); state.exam=null; }
+  state.mode=m;
+  document.querySelectorAll("#mode button").forEach(x=> x.classList.toggle("active", x.dataset.mode===m));
+  buildOrder(); render();
+}
+document.getElementById("mode").addEventListener("click", e=>{
+  const b = e.target.closest("button"); if(!b) return;
+  setMode(b.dataset.mode);
+});
+
+/* Keyboard shortcuts */
+document.addEventListener("keydown", e=>{
+  if(["1","2","3","4"].includes(e.key)){
+    const b = document.querySelector('.opt[data-k="'+(+e.key-1)+'"]');
+    if(b && !b.disabled) b.click();
+  } else if(e.code==="Space"){
+    if(document.activeElement && document.activeElement.tagName==="INPUT") return;
+    e.preventDefault();
+    const next = document.getElementById("next");
+    const skip = document.getElementById("skip");
+    const newp = document.getElementById("newp");
+    if(next && !next.disabled) next.click();
+    else if(newp) newp.click();
+    else if(skip) skip.click();
+  }
+});
+
+document.getElementById("reset").onclick = (e)=>{
+  e.preventDefault();
+  localStorage.removeItem("bits_study");
+  state.best = 0; buildOrder(); render();
+};
+
+/* init */
+buildOrder();
+renderSubjects();
+render();
+</script>
+</body>
+</html>
