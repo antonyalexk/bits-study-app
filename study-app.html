@@ -583,7 +583,42 @@ const BANK = [
  e:`$P(w_i\\mid t_i)$ is the <b>lexical/emission</b> evidence (how well the word fits the tag); $P(T)=\\prod_i P(t_i\\mid t_{i-1})$ is the <b>contextual/transition</b> evidence. $P(W)$ is constant, so it drops out.`},
 {s:"NLP",t:"Forward vs Viterbi",q:`The only structural difference between the Forward and Viterbi recurrences is:`,
  o:[`Forward uses max, Viterbi uses sum`,`Forward sums over previous states, Viterbi takes the max (with backpointers)`,`They use different emission matrices`,`Viterbi ignores transitions`],a:1,
- e:`Forward: $\\alpha_t(j)=[\\sum_i \\alpha_{t-1}(i)a_{ij}]b_j(o_t)$ (total likelihood). Viterbi: $\\delta_t(j)=\\max_i[\\delta_{t-1}(i)a_{ij}]b_j(o_t)$ + backpointers (best path).`}
+ e:`Forward: $\\alpha_t(j)=[\\sum_i \\alpha_{t-1}(i)a_{ij}]b_j(o_t)$ (total likelihood). Viterbi: $\\delta_t(j)=\\max_i[\\delta_{t-1}(i)a_{ij}]b_j(o_t)$ + backpointers (best path).`},
+/* ---------------- DRL: Monte Carlo & Policy Iteration (added 2026-09-06) ---------------- */
+{s:"DRL",t:"First-visit MC value",q:`Fixed policy, $\\gamma=1$, step reward −1. Across four episodes the returns from state <b>C</b> (first occurrence to episode end) are $9,9,9,-11$. First-visit $V(C)=$?`,
+ o:[`9`,`4`,`16`,`−11`],a:1,
+ e:`Average the first-visit returns: $(9+9+9-11)/4 = 16/4 = \\mathbf{4}$. First-visit MC averages the return from each state's <b>first occurrence to episode end</b> over the episodes that contain it.`},
+{s:"DRL",t:"Weakness of MC evaluation",q:`In a first-visit MC pass, states B and E both transition into C, yet $V(B)=+8$ and $V(E)=-2$. What does this reveal?`,
+ o:[`A bug — equal successors must give equal values`,`MC evaluates each state separately and ignores shared transition structure, so it is slow / data-hungry`,`The discount factor was wrong`,`E must be a terminal state`],a:1,
+ e:`MC learns each state independently from sampled returns and <b>wastes information about transition probabilities</b>. With few episodes, states sharing a successor can still differ; thousands of episodes make them converge.`},
+{s:"DRL",t:"Policy iteration convergence",q:`In policy iteration, why can you often stop <b>before</b> the value estimates fully converge?`,
+ o:[`The values are irrelevant`,`The greedy policy usually stabilizes before the numbers do — once $\\arg\\max$ stops changing, $\\pi$ is optimal`,`Because evaluation uses a max`,`You cannot — you must wait for value convergence`],a:1,
+ e:`The <b>policy converges before the values</b>. Checking for a stable policy (not a stable value) lets you stop early; value iteration never checks this, so it can waste sweeps after the policy is already optimal.`},
+{s:"DRL",t:"Why Monte Carlo",q:`Monte Carlo methods are introduced by taking a known MDP and removing which elements?`,
+ o:[`The states and actions`,`The transition probabilities and reward function (the model)`,`The discount factor`,`The terminal states`],a:1,
+ e:`MC is <b>model-free</b>: you keep the states, actions and an environment to interact with, but the <b>transition probabilities and rewards are unknown</b> — you learn from the returns the environment actually hands back over sampled episodes.`},
+{s:"DRL",t:"Importance sampling",q:`For off-policy Monte Carlo, which statement about importance sampling is correct?`,
+ o:[`Ordinary IS is biased; weighted IS is unbiased`,`Ordinary IS is unbiased but high-variance; weighted IS is biased but bounded-variance`,`Both are always unbiased`,`Weighted IS has unbounded variance`],a:1,
+ e:`Reweight returns by $\\rho=\\prod_t \\pi(a_t|s_t)/b(a_t|s_t)$. <b>Ordinary IS</b> ($\\tfrac1N\\sum\\rho G$) is unbiased with possibly unbounded variance; <b>weighted IS</b> ($\\sum\\rho G/\\sum\\rho$) is biased (bias vanishes with data) but bounded-variance — usually preferred.`},
+{s:"DRL",t:"DP vs MC vs TD",q:`Which method is <b>model-free</b>, <b>bootstraps</b>, and updates <b>online every step</b> (no full episode needed)?`,
+ o:[`Dynamic programming`,`Monte Carlo`,`Temporal-Difference (TD)`,`Value iteration`],a:2,
+ e:`<b>TD = MC + DP</b>: model-free like MC, but it bootstraps (target uses the current estimate $V(S')$) like DP, so it learns online from incomplete episodes. DP needs the model; MC needs full episodes and does not bootstrap.`},
+/* ---------------- CV: Segmentation (added 2026-09-06) ---------------- */
+{s:"CV",t:"Semantic vs instance segmentation",q:`Which task separates <b>person 1</b> from <b>person 2</b> with distinct masks?`,
+ o:[`Semantic segmentation`,`Instance segmentation`,`Image classification`,`Thresholding`],a:1,
+ e:`<b>Semantic</b> segmentation labels every person pixel the same; <b>instance</b> segmentation adds a <b>unique id</b> per object (person 1, 2, 3…). Semantic masks + unique identifiers = instance.`},
+{s:"CV",t:"Dilated (atrous) convolution",q:`Why use a <b>dilated (atrous)</b> convolution instead of a larger kernel in a segmentation network?`,
+ o:[`It removes the need for training data`,`It enlarges the receptive field at constant parameter count by inserting zeros between kernel taps`,`It always improves accuracy on tiny objects`,`It replaces the upsampling layer`],a:1,
+ e:`Inserting <b>zeros/holes</b> between taps lets a $3\\times3$ kernel see a larger area <b>without adding parameters</b> (zeros cost no multiply). A bigger full kernel raises parameters/compute. Trade-off: it approximates/skips pixels, so very small objects can be missed — tune the dilation rate.`},
+{s:"CV",t:"U-Net vs DeepLab",q:`The key architectural difference between U-Net and DeepLab is:`,
+ o:[`U-Net has no decoder`,`U-Net uses a single dilation rate; DeepLab uses multiple parallel dilation rates for different object sizes`,`DeepLab has no convolutions`,`U-Net cannot do semantic segmentation`],a:1,
+ e:`<b>U-Net</b> = encoder–decoder with skip connections and a <b>single</b> dilation rate; <b>DeepLab</b> runs <b>several dilation rates in parallel</b> (small/medium/large) so one model captures multiple object scales.`},
+{s:"CV",t:"Segmentation-CNN anatomy",q:`Vs a classification CNN (conv→pool→FC→softmax→class), a segmentation network's two main changes are:`,
+ o:[`More pooling and a bigger FC layer`,`Dilated convolutions in the middle and an upsampling layer at the end (no FC-to-one-class head)`,`Removing all convolutions`,`Adding a recurrent layer`],a:1,
+ e:`A segmentation net keeps the conv backbone but (1) uses <b>dilated conv</b> layers and (2) ends with <b>upsampling</b> to recover a full-resolution mask — it drops the fully-connected softmax-to-single-class head.`},
+{s:"CV",t:"Dice coefficient",q:`Predicted and ground-truth masks have intersection 20, with $|\\text{pred}|=50$ and $|\\text{truth}|=30$. The Dice coefficient (DSC) is:`,
+ o:[`0.33`,`0.40`,`0.50`,`0.67`],a:2,
+ e:`$\\text{DSC}=\\dfrac{2\\,|\\text{pred}\\cap\\text{truth}|}{|\\text{pred}|+|\\text{truth}|}=\\dfrac{2\\cdot20}{50+30}=\\dfrac{40}{80}=\\mathbf{0.5}$. For comparison IoU $=20/(50+30-20)=20/60=0.33$.`}
 ];
 
 /* ===================== NUMERICAL PRACTICE GENERATORS ===================== */
