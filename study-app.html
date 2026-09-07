@@ -618,7 +618,23 @@ const BANK = [
  e:`A segmentation net keeps the conv backbone but (1) uses <b>dilated conv</b> layers and (2) ends with <b>upsampling</b> to recover a full-resolution mask — it drops the fully-connected softmax-to-single-class head.`},
 {s:"CV",t:"Dice coefficient",q:`Predicted and ground-truth masks have intersection 20, with $|\\text{pred}|=50$ and $|\\text{truth}|=30$. The Dice coefficient (DSC) is:`,
  o:[`0.33`,`0.40`,`0.50`,`0.67`],a:2,
- e:`$\\text{DSC}=\\dfrac{2\\,|\\text{pred}\\cap\\text{truth}|}{|\\text{pred}|+|\\text{truth}|}=\\dfrac{2\\cdot20}{50+30}=\\dfrac{40}{80}=\\mathbf{0.5}$. For comparison IoU $=20/(50+30-20)=20/60=0.33$.`}
+ e:`$\\text{DSC}=\\dfrac{2\\,|\\text{pred}\\cap\\text{truth}|}{|\\text{pred}|+|\\text{truth}|}=\\dfrac{2\\cdot20}{50+30}=\\dfrac{40}{80}=\\mathbf{0.5}$. For comparison IoU $=20/(50+30-20)=20/60=0.33$.`},
+/* ---------------- NLP: Forward & Viterbi (added 2026-09-07) ---------------- */
+{s:"NLP",t:"Forward vs Viterbi",q:`In the HMM trellis, Forward and Viterbi differ in exactly one operation. Which?`,
+ o:[`Forward uses max, Viterbi uses sum`,`Forward sums over incoming paths; Viterbi takes the max (and stores back pointers)`,`They use different emission matrices`,`Viterbi ignores transition probabilities`],a:1,
+ e:`Both fill the same trellis in $O(N^2T)$. <b>Forward</b> <b>sums</b> incoming paths → likelihood $P(O)$; <b>Viterbi</b> takes the <b>max</b> and stores a <b>back pointer</b> per node → the single best hidden/tag sequence.`},
+{s:"NLP",t:"Viterbi back pointers",q:`Why does Viterbi store a <b>back pointer</b> at every trellis node?`,
+ o:[`To normalize probabilities`,`Because the max probability alone gives no path — back pointers let you backtrace the best tag sequence`,`To speed up emission lookups`,`To handle unknown words`],a:1,
+ e:`$v_T(j)$ gives only the best final <i>probability</i>. To output the actual tags you record which predecessor won each max, then <b>backtrace</b> from $\\max_j v_T(j)$ back to $t=1$.`},
+{s:"NLP",t:"Why a trellis (DP)",q:`Enumerating all hidden state sequences of an $N$-state HMM over length $T$ costs $N^T$. The trellis-based Forward/Viterbi reduces this to:`,
+ o:[`$O(NT)$`,`$O(N^2T)$`,`$O(T^N)$`,`$O(N^T)$ still`],a:1,
+ e:`The trellis reuses shared sub-paths (dynamic programming), collapsing the exponential $N^T$ enumeration into $O(N^2T)$: at each of $T$ steps, each of $N$ states combines over $N$ predecessors.`},
+{s:"NLP",t:"HMM → POS mapping",q:`When an HMM is used for POS tagging, the <b>emission</b> probability $b_j(o)$ represents:`,
+ o:[`$P(\\text{tag}\\mid\\text{previous tag})$`,`$P(\\text{word}\\mid\\text{tag})$`,`$P(\\text{tag}\\mid\\text{word})$`,`$P(\\text{word}\\mid\\text{previous word})$`],a:1,
+ e:`States = tags, observations = words. <b>Emission</b> = $P(\\text{word}\\mid\\text{tag})$; <b>transition</b> = $P(t_i\\mid t_{i-1})$. Forward gives $P(\\text{sentence})$; Viterbi gives the best tag sequence.`},
+{s:"NLP",t:"Forward variable",q:`The forward variable $\\alpha_t(j)$ in an HMM is:`,
+ o:[`The best single path reaching state $j$ at time $t$`,`The total probability of all paths that generated $o_1..o_t$ and end in state $j$`,`The probability of observation $o_t$ alone`,`The transition probability into state $j$`],a:1,
+ e:`$\\alpha_t(j)=[\\sum_i \\alpha_{t-1}(i)a_{ij}]b_j(o_t)$ = the <b>summed</b> probability of every path generating the first $t$ observations and ending in state $j$. (The <i>best single</i> path is Viterbi's $v_t(j)$.)`}
 ];
 
 /* ===================== NUMERICAL PRACTICE GENERATORS ===================== */
