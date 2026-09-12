@@ -659,8 +659,8 @@ const BANK = [
  o:[`It removes the need for training data`,`It enlarges the receptive field at constant parameter count by inserting zeros between kernel taps`,`It always improves accuracy on tiny objects`,`It replaces the upsampling layer`],a:1,
  e:`Inserting <b>zeros/holes</b> between taps lets a $3\\times3$ kernel see a larger area <b>without adding parameters</b> (zeros cost no multiply). A bigger full kernel raises parameters/compute. Trade-off: it approximates/skips pixels, so very small objects can be missed — tune the dilation rate.`},
 {s:"CV",t:"U-Net vs DeepLab",q:`The key architectural difference between U-Net and DeepLab is:`,
- o:[`U-Net has no decoder`,`U-Net uses a single dilation rate; DeepLab uses multiple parallel dilation rates for different object sizes`,`DeepLab has no convolutions`,`U-Net cannot do semantic segmentation`],a:1,
- e:`<b>U-Net</b> = encoder–decoder with skip connections and a <b>single</b> dilation rate; <b>DeepLab</b> runs <b>several dilation rates in parallel</b> (small/medium/large) so one model captures multiple object scales.`},
+ o:[`U-Net restores resolution with a decoder and skip features; DeepLab preserves a larger map and uses parallel atrous rates`,`U-Net has no decoder`,`DeepLab has no convolutions`,`U-Net cannot do semantic segmentation`],a:0,
+ e:`Picture <b>U-Net as a V</b>: downsample, then decode upward while copying high-resolution skip features. Picture <b>DeepLab as an L</b>: stop aggressive downsampling and use <b>ASPP with parallel atrous rates</b> for multi-scale context.`},
 {s:"CV",t:"Segmentation-CNN anatomy",q:`Vs a classification CNN (conv→pool→FC→softmax→class), a segmentation network's two main changes are:`,
  o:[`More pooling and a bigger FC layer`,`Dilated convolutions in the middle and an upsampling layer at the end (no FC-to-one-class head)`,`Removing all convolutions`,`Adding a recurrent layer`],a:1,
  e:`A segmentation net keeps the conv backbone but (1) uses <b>dilated conv</b> layers and (2) ends with <b>upsampling</b> to recover a full-resolution mask — it drops the fully-connected softmax-to-single-class head.`},
@@ -682,7 +682,38 @@ const BANK = [
  e:`States = tags, observations = words. <b>Emission</b> = $P(\\text{word}\\mid\\text{tag})$; <b>transition</b> = $P(t_i\\mid t_{i-1})$. Forward gives $P(\\text{sentence})$; Viterbi gives the best tag sequence.`},
 {s:"NLP",t:"Forward variable",q:`The forward variable $\\alpha_t(j)$ in an HMM is:`,
  o:[`The best single path reaching state $j$ at time $t$`,`The total probability of all paths that generated $o_1..o_t$ and end in state $j$`,`The probability of observation $o_t$ alone`,`The transition probability into state $j$`],a:1,
- e:`$\\alpha_t(j)=[\\sum_i \\alpha_{t-1}(i)a_{ij}]b_j(o_t)$ = the <b>summed</b> probability of every path generating the first $t$ observations and ending in state $j$. (The <i>best single</i> path is Viterbi's $v_t(j)$.)`}
+ e:`$\\alpha_t(j)=[\\sum_i \\alpha_{t-1}(i)a_{ij}]b_j(o_t)$ = the <b>summed</b> probability of every path generating the first $t$ observations and ending in state $j$. (The <i>best single</i> path is Viterbi's $v_t(j)$.)`},
+/* ---------------- 12-Sep lectures + exact-paper recognition ---------------- */
+{s:"CV",t:"Panoptic segmentation",q:`A system must label <b>every pixel</b> and also give every countable object a separate identity. Which output is required?`,
+ o:[`Classification`,`Semantic segmentation`,`Instance segmentation only`,`Panoptic segmentation`],a:3,
+ e:`<b>Panoptic segmentation</b> combines semantic coverage of every pixel with instance identities for countable “things”.`},
+{s:"CV",t:"RoI Align",q:`Why does Mask R-CNN use RoI Align instead of RoI Pool?`,
+ o:[`To add class labels`,`To avoid coordinate rounding and preserve pixel-aligned mask boundaries`,`To remove the RPN`,`To make NMS differentiable`],a:1,
+ e:`RoI Pool quantises proposal/bin coordinates. <b>RoI Align keeps fractional coordinates and bilinearly samples</b>, preventing a coarse-map shift from propagating around the entire mask boundary.`},
+{s:"CV",t:"Mask R-CNN",q:`Which is the best architectural summary of Mask R-CNN?`,
+ o:[`YOLO plus a prompt encoder`,`Faster R-CNN plus a parallel per-RoI mask head`,`U-Net plus NMS`,`SAM plus a class head`],a:1,
+ e:`Mask R-CNN retains Faster R-CNN's backbone/FPN, RPN, class and box heads, then adds a <b>parallel FCN mask head</b>. Its loss is $L_{cls}+L_{box}+L_{mask}$.`},
+{s:"CV",t:"Segment Anything",q:`What does SAM <b>not</b> provide by itself?`,
+ o:[`A mask from a point or box prompt`,`Several masks for an ambiguous prompt`,`A semantic class name for the outlined object`,`A reusable image embedding`],a:2,
+ e:`SAM is a <b>class-agnostic prompted segmenter</b>: it returns shapes, not names. A detector, classifier, dataset or human must supply what the object is and which objects matter.`},
+{s:"CV",t:"Segmentation metrics",q:`A background-only prediction scores 90% pixel accuracy on an image with 10% foreground. What is the correct conclusion?`,
+ o:[`The segmenter is excellent`,`Accuracy is misleading; inspect foreground/per-class IoU and boundary quality`,`Dice must also be 90%`,`The data is balanced`],a:1,
+ e:`Pixel accuracy is dominated by the large background. A model can score 90% while finding <b>none</b> of the object; report foreground/per-class IoU and boundary F1 when edges matter.`},
+{s:"DRL",t:"Off-policy coverage",q:`Off-policy evaluation of target $\\pi$ from behaviour $b$ requires which coverage condition?`,
+ o:[`$b(a|s)=0$ whenever $\\pi(a|s)>0$`,`$b(a|s)>0$ whenever $\\pi(a|s)>0$`,`Both policies must be deterministic`,`$b$ must always be greedy`],a:1,
+ e:`Every action the target might take must be possible under the behaviour policy: $\\pi(a|s)>0\\Rightarrow b(a|s)>0$. Otherwise no sampled evidence can estimate that part of the target.`},
+{s:"DRL",t:"Importance-sampling control",q:`In backward weighted off-policy MC control, what does cumulative table $C(s,a)$ store?`,
+ o:[`Immediate rewards`,`An unweighted visit count only`,`Accumulated importance weight/evidence`,`The behaviour policy`],a:2,
+ e:`$C(s,a)\\leftarrow C(s,a)+W$ accumulates <b>weighted evidence</b>. The incremental update uses $W/C(s,a)$; $C$ is not merely a visit count unless every weight equals one.`},
+{s:"DRL",t:"Off-policy break condition",q:`Why does backward off-policy MC control stop when sampled $A_t\\ne\\pi(S_t)$ for a deterministic target?`,
+ o:[`The episode has ended`,`The earlier trajectory prefix has zero probability under the target policy`,`The return becomes terminal`,`The behaviour policy loses coverage`],a:1,
+ e:`A deterministic target assigns probability zero to the mismatching action, so the importance ratio for any earlier prefix becomes <b>zero</b>; continuing cannot update the target estimate.`},
+{s:"NLP",t:"Question recognition",q:`An HMM question asks for the <b>likelihood of the observation sequence</b>. Which recurrence should you use?`,
+ o:[`Viterbi max with backpointers`,`Forward sum over incoming paths`,`PCFG rule product`,`Cosine similarity`],a:1,
+ e:`“Likelihood” asks for the total probability across <b>all</b> hidden paths, so use <b>Forward (sum)</b>. “Best hidden sequence” would select Viterbi (max + backtrace).`},
+{s:"NLP",t:"Laplace smoothing",q:`For add-one bigram smoothing, what belongs in the denominator of $P(w_i|w_{i-1})$?`,
+ o:[`Corpus length`,`$C(w_i)+V$`,`$C(w_{i-1})+V$`,`$C(w_{i-1},w_i)+1$`],a:2,
+ e:`$P(w_i|w_{i-1})=\\dfrac{C(w_{i-1},w_i)+1}{C(w_{i-1})+V}$. The denominator is the predecessor count plus vocabulary size.`}
 ];
 
 /* ===================== NUMERICAL PRACTICE GENERATORS ===================== */
@@ -731,6 +762,11 @@ const PRACTICE = [
 {s:"CV",t:"Gamma correction",gen:()=>{ const v=ri(20,240), g=pick([0.5,0.8,1.5,2.2]), norm=v/255, ans=Math.round(255*Math.pow(norm,g));
   return {q:`Pixel value ${v} (0–255), gamma $\\gamma=${g}$. Output $=\\mathrm{round}(255\\,(v/255)^\\gamma)$? (integer)`,
    ans, tol:1, sol:`$255\\times(${v}/255)^{${g}}=255\\times${r2(norm,3)}^{${g}}=${ans}$`}; }},
+{s:"CV",t:"Dice from IoU",gen:()=>{ const iou=pick([0.2,0.25,0.4,0.5,0.6,0.75,0.8]), ans=2*iou/(1+iou);
+  return {q:`A segmentation mask has IoU $J=${iou}$. Compute Dice $D=2J/(1+J)$. (3 dp)`,
+   ans, tol:0.002, sol:`$D=\\dfrac{2(${iou})}{1+${iou}}=${r2(ans,3)}$. Sanity check: Dice is at least IoU for values in $[0,1]$.`}; }},
+{s:"CV",t:"Receptive field and jump",gen:()=>{ const ks=[3,3,pick([3,5])], ss=[1,2,pick([1,2])]; let rf=1,jump=1; const steps=[]; for(let i=0;i<ks.length;i++){rf=rf+(ks[i]-1)*jump;jump*=ss[i];steps.push(`L${i+1}: RF=${rf}, jump=${jump}`);} return {q:`Three conv layers have kernels $[${ks.join(',')}]$ and strides $[${ss.join(',')}]$. Starting $RF=1$, jump $=1$, compute the final receptive field.`, ans:rf,tol:0.5,sol:`Use $RF_l=RF_{l-1}+(K_l-1)j_{l-1}$ and $j_l=j_{l-1}S_l$.<br>${steps.join('<br>')}<br>Final RF $=${rf}$.`}; }},
+{s:"DRL",t:"Importance-sampling ratio",gen:()=>{ const n=ri(1,4), b=pick([0.25,0.5]), ans=Math.pow(1/b,n); return {q:`A deterministic target assigns probability 1 to each of ${n} actions in a sampled suffix; behaviour assigns probability ${b} to each. Compute $\\rho=\\prod \\pi/b$.`,ans,tol:0.01,sol:`Every factor is $1/${b}$. Thus $\\rho=(1/${b})^{${n}}=${ans}$. One target-inconsistent action would instead make the ratio 0.`}; }},
 {s:"NLP",t:"TF-IDF",gen:()=>{ const tf=ri(1,8), N=ri(6,20), df=ri(1,N), idf=Math.log10(N/df), ans=tf*idf;
   return {q:`$tf=${tf}$, corpus $N=${N}$ docs, $df=${df}$. Compute TF-IDF $=tf\\times\\log_{10}(N/df)$. (3 dp)`,
    ans, tol:0.01, sol:`$idf=\\log_{10}(${N}/${df})=${r2(idf,3)}$; TF-IDF $=${tf}\\times${r2(idf,3)}=${r2(ans,3)}$`}; }},
