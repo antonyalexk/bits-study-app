@@ -199,6 +199,36 @@ const BANK = [
 {s:"ACI",t:"Adversarial search",q:`Alpha-beta pruning, compared with plain minimax, returns:`,
  o:[`A different (approximate) value, faster`,`The exact same value, faster`,`A better value, slower`,`Only the value for MAX nodes`],a:1,
  e:`Alpha-beta returns the <b>identical minimax value</b> — it only skips branches that cannot affect the decision (prune when $\\alpha \\ge \\beta$). Good ordering → $O(b^{m/2})$.`},
+{s:"ACI",t:"Game formulation",q:`Which function in a formal game definition identifies whose turn it is in state $s$?`,
+ o:[`ACTIONS(s)`,`PLAYER(s)`,`RESULT(s,a)`,`UTILITY(s,p)`],a:1,
+ e:`<b>PLAYER(s)</b> identifies the player to move. The other components are initial state, legal actions, result, terminal test, and utility.`},
+{s:"ACI",t:"Minimax",q:`A MAX root has two MIN children with leaf values $(4,7)$ and $(2,6)$. What does minimax return?`,
+ o:[`7`,`6`,`4`,`2`],a:2,
+ e:`MIN first backs up $\min(4,7)=4$ and $\min(2,6)=2$. MAX then chooses $\max(4,2)=4$: the best <b>guaranteed</b> result.`},
+{s:"ACI",t:"Minimax",q:`Why can MAX not simply choose a branch because it contains the highest-valued leaf?`,
+ o:[`Leaf values are never used`,`MIN chooses the reply within that branch`,`MAX must choose the smallest leaf`,`Only terminal depth matters`],a:1,
+ e:`After MAX selects a move, MIN responds optimally. MAX therefore compares each branch's backed-up worst case, not its most attractive leaf.`},
+{s:"ACI",t:"Static evaluation",q:`When a large game tree is cut off at a depth limit, where should the static evaluation function be applied?`,
+ o:[`Only at the root`,`At every generated node independently`,`At non-terminal leaves on the cutoff frontier`,`Only after alpha-beta finishes`],a:2,
+ e:`Evaluate the <b>non-terminal cutoff leaves</b>, then propagate those estimates upward with minimax. Intermediate nodes receive backed-up values.`},
+{s:"ACI",t:"Static evaluation",q:`For $E=2S+3G+2A+4C$, what is the score of $(S,G,A,C)=(1,3,1,2)$?`,
+ o:[`14`,`18`,`21`,`24`],a:2,
+ e:`$E=2(1)+3(3)+2(1)+4(2)=2+9+2+8=21$. A positive score favors MAX.`},
+{s:"ACI",t:"Alpha-beta pruning",q:`At a MIN node, $\alpha=5$. Its first explored child gives $\beta=2$. What should happen next?`,
+ o:[`Explore every sibling`,`Prune the remaining siblings because $\beta\le\alpha$`,`Reset $\alpha$ to 2`,`Return positive infinity`],a:1,
+ e:`Since $\beta=2\le\alpha=5$, MAX already has a better alternative elsewhere. The remaining siblings cannot change the root decision and are pruned.`},
+{s:"ACI",t:"Alpha-beta pruning",q:`What is the main effect of examining promising moves first in alpha-beta search?`,
+ o:[`It changes the minimax answer`,`It increases branching factor`,`It creates earlier cutoffs and searches fewer nodes`,`It makes the game stochastic`],a:2,
+ e:`Good move ordering tightens $\alpha$ and $\beta$ early, producing more cutoffs. It changes efficiency, <b>not</b> the final minimax value.`},
+{s:"ACI",t:"MCTS",q:`What is the correct order of one Monte Carlo Tree Search iteration?`,
+ o:[`Simulation → selection → backpropagation → expansion`,`Selection → expansion → simulation → backpropagation`,`Expansion → simulation → selection → pruning`,`Selection → minimax → expansion → evaluation`],a:1,
+ e:`MCTS repeatedly performs <b>selection, expansion, simulation (rollout), and backpropagation</b>. The statistics then guide the next iteration.`},
+{s:"ACI",t:"MCTS / UCT",q:`In $UCT_i=\bar X_i+C\sqrt{\ln N/n_i}$, what happens to the exploration bonus as child visits $n_i$ increase?`,
+ o:[`It increases`,`It decreases`,`It stays constant`,`It becomes the win rate`],a:1,
+ e:`$n_i$ is in the denominator, so more visits shrink the exploration bonus. High $\bar X_i$ drives exploitation; low $n_i$ encourages exploration.`},
+{s:"ACI",t:"MCTS",q:`Which situation most strongly motivates MCTS instead of exhaustive minimax?`,
+ o:[`A tiny deterministic tree with known utilities`,`An enormous game tree where cheap rollouts can estimate promising moves`,`A shortest-path problem with no opponent`,`A CSP with one variable`],a:1,
+ e:`MCTS selectively grows enormous trees and uses repeated simulations rather than exhaustively evaluating every future. The faculty expects scenario-based justification of this trade-off.`},
 {s:"ACI",t:"Bayesian networks",q:`In a Bayesian network, the full joint distribution factorizes as:`,
  o:[`$\\sum_i P(X_i)$`,`$\\prod_i P(X_i \\mid \\text{Parents}(X_i))$`,`$\\prod_i P(X_i)$`,`$\\max_i P(X_i)$`],a:1,
  e:`A Bayes net exploits conditional independence: $P(X_1,\\dots,X_n)=\\prod_i P(X_i\\mid \\text{Parents}(X_i))$. Each node needs only its CPT given its parents.`},
@@ -722,7 +752,10 @@ const PRACTICE = [
    ans, tol:0.001, sol:`$p_1=\\dfrac{f_1}{\\sum f}=\\dfrac{${f[0]}}{${tot}}=${r2(ans,4)}$`}; }},
 {s:"ACI",t:"A* evaluation",gen:()=>{ const g=ri(3,20), h=ri(1,15), ans=g+h;
   return {q:`A* node: path cost $g(n)=${g}$, heuristic $h(n)=${h}$. Evaluation $f(n)=g(n)+h(n)$? (integer)`,
-   ans, tol:0.5, sol:`$f(n)=g(n)+h(n)=${g}+${h}=${ans}$`}; }}
+  ans, tol:0.5, sol:`$f(n)=g(n)+h(n)=${g}+${h}=${ans}$`}; }},
+{s:"ACI",t:"Minimax backup",gen:()=>{ const a=ri(-5,9), b=ri(-5,9), c=ri(-5,9), d=ri(-5,9), left=Math.min(a,b), right=Math.min(c,d), ans=Math.max(left,right);
+  return {q:`A MAX root has two MIN children. Their leaf values are $(${a},${b})$ and $(${c},${d})$. Compute the minimax value.`,
+  ans, tol:0.5, sol:`Left MIN $=\min(${a},${b})=${left}$; right MIN $=\min(${c},${d})=${right}$. Root MAX $=\max(${left},${right})=${ans}$.`}; }}
 ];
 
 /* ============================ APP LOGIC ============================ */
