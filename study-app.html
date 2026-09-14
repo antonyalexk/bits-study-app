@@ -713,7 +713,28 @@ const BANK = [
  e:`“Likelihood” asks for the total probability across <b>all</b> hidden paths, so use <b>Forward (sum)</b>. “Best hidden sequence” would select Viterbi (max + backtrace).`},
 {s:"NLP",t:"Laplace smoothing",q:`For add-one bigram smoothing, what belongs in the denominator of $P(w_i|w_{i-1})$?`,
  o:[`Corpus length`,`$C(w_i)+V$`,`$C(w_{i-1})+V$`,`$C(w_{i-1},w_i)+1$`],a:2,
- e:`$P(w_i|w_{i-1})=\\dfrac{C(w_{i-1},w_i)+1}{C(w_{i-1})+V}$. The denominator is the predecessor count plus vocabulary size.`}
+ e:`$P(w_i|w_{i-1})=\dfrac{C(w_{i-1},w_i)+1}{C(w_{i-1})+V}$. The denominator is the predecessor count plus vocabulary size.`},
+{s:"NLP",t:"Language analysis levels",q:`Interpreting “Can you pass the salt?” as a request rather than a literal ability question primarily uses which level?`,
+ o:[`Morphological`,`Syntactic`,`Pragmatic`,`Lexical`],a:2,
+ e:`<b>Pragmatics</b> uses situation, speaker intent and language use to move beyond literal sentence meaning. Discourse instead connects meaning across neighbouring sentences.`},
+{s:"NLP",t:"Ambiguity recognition",q:`“She saw a girl with binoculars” is structurally ambiguous because:`,
+ o:[`“saw” has unrelated dictionary senses`,`The prepositional phrase can attach to the seeing event or to the girl`,`“girl” can be a noun or verb`,`The sentence has no valid parse`],a:1,
+ e:`This is <b>attachment ambiguity</b>: the binoculars may be the instrument used to see, or something the girl has. Two parses means structural ambiguity; two word senses means lexical ambiguity.`},
+{s:"NLP",t:"Unigram ranking",q:`Two candidate translations contain exactly the same words but in different orders. Under an unsmoothed unigram model, their probabilities are:`,
+ o:[`Always different`,`Equal, because multiplication of unigram probabilities ignores order`,`Both necessarily zero`,`Determined by syntax rules`],a:1,
+ e:`A unigram score is $\prod_i P(w_i)$. Reordering the same factors leaves the product unchanged. A bigram model can distinguish the candidates because it scores adjacent word order.`},
+{s:"NLP",t:"Neural classifier architecture",q:`A neural sentiment classifier has mutually exclusive outputs GOOD, BAD and AVERAGE. The most appropriate output layer is:`,
+ o:[`One linear node`,`Three logits followed by softmax`,`Three hidden ReLU nodes only`,`A vocabulary-sized sigmoid layer`],a:1,
+ e:`Use one logit per class and <b>softmax</b> to obtain a distribution over the three mutually exclusive labels. The target is a one-hot vector in the declared class order.`},
+{s:"NLP",t:"Neural word predictor",q:`A feed-forward model predicts “quite” from the three context words “jamoon is really”. What should its training target be?`,
+ o:[`The average of the three input embeddings`,`A one-hot vocabulary vector with “quite” equal to 1`,`The sentiment label GOOD`,`The hidden-layer activation`],a:1,
+ e:`The context embeddings form the input; the known following word supplies a <b>one-hot target over the vocabulary</b>. Softmax produces the predicted next-word distribution.`},
+{s:"NLP",t:"TF-IDF convention",q:`A paper says: lowercase only, do no further preprocessing, use $tf=C(t,d)/|d|$, and use natural logarithm. What should you do?`,
+ o:[`Remove stopwords and use $\log_{10}$`,`Stem words before counting`,`Retain stopwords and use $\ln(N/df)$`,`Choose any convention without stating it`],a:2,
+ e:`Follow the stated convention exactly: lowercase, keep stopwords, preserve a consistent tokenisation, normalise TF by document length, and use <b>natural log</b> for IDF.`},
+{s:"NLP",t:"Negative sampling update",q:`In Skip-gram negative sampling with gradient descent, which qualitative update is correct?`,
+ o:[`Push the centre away from the true context and toward negatives`,`Pull the centre toward the true context and push it away from negatives`,`Move every vector in the same direction`,`Only the labels change`],a:1,
+ e:`The positive pair has target 1, so training increases its dot product; negatives have target 0, so training decreases theirs. Thus the centre is pulled toward the true context and pushed away from sampled noise words.`}
 ];
 
 /* ===================== NUMERICAL PRACTICE GENERATORS ===================== */
@@ -780,6 +801,9 @@ const PRACTICE = [
 {s:"NLP",t:"Bigram MLE",gen:()=>{ const C=ri(1,8), Cctx=ri(C,15), ans=C/Cctx;
   return {q:`$C(w_{i-1},w_i)=${C}$, $C(w_{i-1})=${Cctx}$. MLE bigram probability $P(w_i\\mid w_{i-1})$? (4 dp)`,
    ans, tol:0.001, sol:`$P=\\dfrac{C(w_{i-1},w_i)}{C(w_{i-1})}=\\dfrac{${C}}{${Cctx}}=${r2(ans,4)}$`}; }},
+{s:"NLP",t:"Skip-gram negative sampling",gen:()=>{ const eta=pick([0.02,0.05,0.1]), v=pick([0.1,0.2,0.3,0.4]), up=pick([0.2,0.3,0.5]), un=pick([0.3,0.4,0.6]); const pp=1/(1+Math.exp(-v*up)), pn=1/(1+Math.exp(-v*un)), grad=(pp-1)*up+pn*un, ans=v-eta*grad;
+  return {q:`One-dimensional Skip-gram: centre $v=${v}$, positive output $u_+=${up}$, negative output $u_-=${un}$, learning rate $\\eta=${eta}$. With $\\hat y=\\sigma(uv)$, compute $v_{new}=v-\\eta[(\\hat y_+-1)u_+ + \\hat y_-u_-]$. (4 dp)`,
+   ans, tol:0.001, sol:`$\\hat y_+=\\sigma(${r2(v*up,3)})=${r2(pp,4)}$, $\\hat y_-=\\sigma(${r2(v*un,3)})=${r2(pn,4)}$<br>Gradient $=(${r2(pp,4)}-1)${up}+${r2(pn,4)}(${un})=${r2(grad,4)}$<br>$v_{new}=${v}-${eta}(${r2(grad,4)})=${r2(ans,4)}$`}; }},
 {s:"ACI",t:"Simulated annealing",gen:()=>{ const dE=ri(1,10), T=pick([1,2,5,10]), ans=Math.exp(-dE/T);
   return {q:`SA: a move worsens the objective by $\\Delta E=${dE}$ at temperature $T=${T}$. Acceptance probability $e^{-\\Delta E/T}$? (4 dp)`,
    ans, tol:0.001, sol:`$P=e^{-${dE}/${T}}=e^{-${r2(dE/T,3)}}=${r2(ans,4)}$`}; }},
