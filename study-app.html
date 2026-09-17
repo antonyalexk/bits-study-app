@@ -122,6 +122,18 @@
   .spark { display:flex; align-items:flex-end; gap:4px; height:90px; padding:6px; background:var(--surface2); border-radius:10px; }
   .sbar { flex:1; min-width:6px; border-radius:3px 3px 0 0; background:var(--muted); align-self:flex-end; }
   .sbar.g { background:var(--ok); } .sbar.y { background:var(--warn); } .sbar.r { background:var(--bad); }
+  .listen-grid { display:grid; grid-template-columns:minmax(210px,280px) 1fr; gap:16px; }
+  .listen-panel { background:var(--surface2); border:1px solid var(--line); border-radius:10px; padding:14px; }
+  .listen-panel label { display:block; color:var(--muted); font-size:.78rem; margin:0 0 5px; }
+  .listen-panel select, .listen-panel input[type="range"] { width:100%; }
+  .listen-panel select { background:var(--surface); border:1px solid var(--line); color:var(--ink); border-radius:8px; padding:9px; margin-bottom:12px; }
+  .listen-controls { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:14px; }
+  .listen-controls .btn { min-width:44px; padding:9px 12px; }
+  .listen-text { max-height:460px; overflow:auto; white-space:pre-wrap; line-height:1.75; color:#dce3f2; }
+  .listen-title { margin:0 0 10px; font-size:1.15rem; }
+  .listen-status { min-height:1.4em; color:var(--muted); font-size:.8rem; margin-top:10px; }
+  .toggle-row { display:flex; align-items:center; gap:8px; color:var(--muted); font-size:.82rem; margin-top:10px; }
+  @media(max-width:700px){ .listen-grid{ grid-template-columns:1fr; } .listen-text{ max-height:none; } }
   @media(max-width:520px){ .pgrid{ grid-template-columns:repeat(2,1fr); } }
 </style>
 </head>
@@ -138,6 +150,7 @@
       <button data-mode="quiz" class="active">📝 Quiz</button>
       <button data-mode="flash">🃏 Flashcards</button>
       <button data-mode="practice">🔢 Practice</button>
+      <button data-mode="listen">▶ Listen</button>
       <button data-mode="exam">📄 Mock Exam</button>
       <button data-mode="progress">📈 Progress</button>
     </div>
@@ -828,6 +841,12 @@ const SUBJECTS = [
 ];
 const SUBJCOLOR = {ACI:"var(--aci)",CV:"var(--cv)",DRL:"var(--drl)",NLP:"var(--nlp)"};
 const SUBJNAME  = {ACI:"ACI",CV:"Computer Vision",DRL:"Deep RL",NLP:"NLP"};
+const NOTE_URLS = {
+  ACI:"Artificial%20and%20Computational%20Intelligence/Artificial%20and%20Computational%20Intelligence%20-%202026-08-18.md",
+  CV:"Computer%20Vision/Computer%20Vision%20-%202026-08-18.md",
+  DRL:"Deep%20Reinforcement%20Learning/Deep%20Reinforcement%20Learning%20-%202026-08-18.md",
+  NLP:"Natural%20Language%20Processing/Natural%20Language%20Processing%20-%202026-08-18.md"
+};
 
 const store = {
   get(){ try{return JSON.parse(localStorage.getItem("bits_study")||"{}");}catch(e){return {};} },
@@ -844,6 +863,7 @@ let state = {
   attempts: 0,
   curPractice: null,
   exam: null,
+  listen: { subject:"ACI", sections:[], section:0, chunks:[], chunk:0, playing:false, paused:false, token:0 },
   answered: false,
   best: (store.get().best)||0
 };
@@ -918,6 +938,7 @@ function render(){
   if(state.mode==="exam"){ renderExam(); return; }
   if(state.mode==="progress"){ renderProgress(); return; }
   if(state.mode==="practice"){ renderPractice(); return; }
+  if(state.mode==="listen"){ renderListen(); return; }
   if(!state.order.length){ stage.innerHTML = `<div class="card empty">No questions for this filter.</div>`; updateStats(); return; }
   if(state.idx >= state.order.length){ finish(); return; }
 
@@ -974,6 +995,234 @@ function render(){
 
   typeset(stage);
   updateStats();
+}
+
+/* ---- Listen to notes ---- */
+let listenVoices = [];
+
+function escapeHTML(text){
+  return String(text).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+function refreshVoices(){
+  if(!("speechSynthesis" in window)) return;
+  listenVoices = speechSynthesis.getVoices().filter(v=>/^en\b/i.test(v.lang));
+  listenVoices.sort((a,b)=> voiceScore(b)-voiceScore(a) || a.name.localeCompare(b.name));
+  if(state.mode==="listen" && document.getElementById("listenVoice")) fillVoiceOptions();
+}
+
+function voiceScore(voice){
+  const name=voice.name.toLowerCase();
+  return (/(natural|neural|premium|enhanced)/.test(name)?8:0)+(voice.localService?2:0)+(/(aria|jenny|sonia|samantha|serena|google)/.test(name)?3:0);
+}
+
+function preferredVoice(){
+  const saved=store.get().listenVoice;
+  return listenVoices.find(v=>v.name===saved) || listenVoices[0] || null;
+}
+
+function fillVoiceOptions(){
+  const select=document.getElementById("listenVoice");
+  if(!select) return;
+  const selected=(preferredVoice()||{}).name;
+  select.innerHTML=listenVoices.length
+    ? listenVoices.map(v=>`<option value="${escapeHTML(v.name)}" ${v.name===selected?'selected':''}>${escapeHTML(v.name)} (${escapeHTML(v.lang)})</option>`).join("")
+    : '<option value="">Browser default voice</option>';
+}
+
+function noteSubject(){ return state.subject==="ALL" ? state.listen.subject : state.subject; }
+
+async function loadListenNote(subject){
+  stopListening();
+  state.listen.subject=subject;
+  state.listen.sections=[];
+  state.listen.section=0;
+  renderListenLoading();
+  try{
+    const response=await fetch(NOTE_URLS[subject], {cache:"no-cache"});
+    if(!response.ok) throw new Error("HTTP "+response.status);
+    state.listen.sections=parseNoteSections(await response.text());
+    if(!state.listen.sections.length) throw new Error("No readable sections found");
+    renderListen();
+  }catch(error){
+    document.getElementById("stage").innerHTML=`<div class="card empty">Could not load the note.<br><span class="hint">Check your internet connection and try again.</span><div class="actions" style="justify-content:center"><span></span><button class="btn primary" id="listenRetry">Retry</button></div></div>`;
+    document.getElementById("listenRetry").onclick=()=>loadListenNote(subject);
+  }
+}
+
+function parseNoteSections(markdown){
+  const sections=[];
+  let title="Introduction", lines=[];
+  const flush=()=>{
+    const text=markdownToSpeech(lines.join("\n"));
+    if(text.length>20) sections.push({title:markdownToSpeech(title), text});
+  };
+  markdown.split(/\r?\n/).forEach(line=>{
+    const heading=line.match(/^#{1,4}\s+(.+)$/);
+    if(heading){ flush(); title=heading[1]; lines=[]; }
+    else lines.push(line);
+  });
+  flush();
+  return sections;
+}
+
+function verbalizeMath(value){
+  return value
+    .replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g," $1 divided by $2 ")
+    .replace(/\\(?:dfrac|tfrac)\{([^{}]+)\}\{([^{}]+)\}/g," $1 divided by $2 ")
+    .replace(/\^\{?([^}\s]+)\}?/g," to the power $1 ")
+    .replace(/_\{?([^}\s]+)\}?/g," subscript $1 ")
+    .replace(/\\sum/g," sum of ").replace(/\\prod/g," product of ")
+    .replace(/\\sqrt\{([^{}]+)\}/g," square root of $1 ")
+    .replace(/\\(alpha|beta|gamma|delta|epsilon|theta|lambda|pi|rho|sigma|tau|phi|psi|omega)/gi," $1 ")
+    .replace(/\\(?:times|cdot)/g," times ").replace(/\\pm/g," plus or minus ")
+    .replace(/\\(?:le|leq)/g," less than or equal to ").replace(/\\(?:ge|geq)/g," greater than or equal to ")
+    .replace(/\\(?:to|rightarrow)/g," leads to ").replace(/\\infty/g," infinity ")
+    .replace(/\\(?:text|mathrm|operatorname)\{([^{}]+)\}/g," $1 ")
+    .replace(/[{}\\]/g," ").replace(/\s+/g," ").trim();
+}
+
+function markdownToSpeech(markdown){
+  return markdown
+    .replace(/```(?:math|mermaid)?\s*([\s\S]*?)```/g,(_,body)=>" Formula: "+verbalizeMath(body)+". ")
+    .replace(/\$([^$]+)\$/g,(_,body)=>verbalizeMath(body))
+    .replace(/\bA\*/g,"A star")
+    .replace(/!\[[^\]]*\]\([^)]*\)/g," ")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g,"$1")
+    .replace(/<[^>]+>/g," ").replace(/`([^`]+)`/g,"$1")
+    .replace(/^\s*\|.*\|\s*$/gm,line=>line.replace(/\|/g,". "))
+    .replace(/^\s*[-*>]+\s?/gm," ").replace(/^\s*\d+[.)]\s+/gm," ")
+    .replace(/\p{Extended_Pictographic}/gu,"").replace(/[*_~#]/g,"").replace(/&amp;/g,"and").replace(/&lt;/g,"less than").replace(/&gt;/g,"greater than")
+    .replace(/\s*\n\s*/g,". ").replace(/\.{2,}/g,".").replace(/\s+/g," ").trim();
+}
+
+function speechChunks(text){
+  const sentences=text.match(/[^.!?;:]+[.!?;:]?/g)||[text];
+  const chunks=[]; let current="";
+  sentences.forEach(sentence=>{
+    const clean=sentence.trim();
+    if(!clean) return;
+    if((current+" "+clean).length>240 && current){ chunks.push(current); current=clean; }
+    else current=(current+" "+clean).trim();
+  });
+  if(current) chunks.push(current);
+  return chunks;
+}
+
+function stopListening(){
+  state.listen.token++;
+  state.listen.playing=false; state.listen.paused=false; state.listen.chunk=0;
+  if("speechSynthesis" in window) speechSynthesis.cancel();
+}
+
+function speakCurrentSection(){
+  if(!("speechSynthesis" in window)) return;
+  speechSynthesis.cancel();
+  const section=state.listen.sections[state.listen.section];
+  if(!section) return;
+  state.listen.chunks=speechChunks(section.title+". "+section.text);
+  state.listen.chunk=0; state.listen.playing=true; state.listen.paused=false;
+  const token=++state.listen.token;
+  updateListenControls();
+  speakNextChunk(token);
+}
+
+function speakNextChunk(token){
+  if(token!==state.listen.token || !state.listen.playing) return;
+  if(state.listen.chunk>=state.listen.chunks.length){
+    const auto=document.getElementById("listenAuto");
+    if(auto && auto.checked && state.listen.section<state.listen.sections.length-1){ changeListenSection(1,true); }
+    else { state.listen.playing=false; state.listen.paused=false; updateListenControls(); }
+    return;
+  }
+  const utterance=new SpeechSynthesisUtterance(state.listen.chunks[state.listen.chunk++]);
+  const voice=preferredVoice(); if(voice) utterance.voice=voice;
+  utterance.rate=+(document.getElementById("listenRate")?.value||0.85);
+  utterance.pitch=1; utterance.volume=1;
+  utterance.onend=()=>speakNextChunk(token);
+  utterance.onerror=event=>{ if(token===state.listen.token && event.error!=="canceled"){ state.listen.playing=false; updateListenControls("Playback stopped. Try another voice."); } };
+  speechSynthesis.speak(utterance);
+  updateListenControls();
+}
+
+function toggleListening(){
+  if(state.listen.playing && !state.listen.paused){ speechSynthesis.pause(); state.listen.paused=true; updateListenControls(); return; }
+  if(state.listen.playing && state.listen.paused){ speechSynthesis.resume(); state.listen.paused=false; updateListenControls(); return; }
+  speakCurrentSection();
+}
+
+function changeListenSection(step, autoplay=false){
+  stopListening();
+  state.listen.section=Math.max(0,Math.min(state.listen.sections.length-1,state.listen.section+step));
+  renderListen();
+  if(autoplay) speakCurrentSection();
+}
+
+function renderListenLoading(){
+  document.getElementById("stage").innerHTML='<div class="card empty">Loading note…</div>';
+}
+
+function renderListen(){
+  const subject=noteSubject();
+  if(state.listen.subject!==subject || !state.listen.sections.length){ loadListenNote(subject); return; }
+  const section=state.listen.sections[state.listen.section];
+  const settings=store.get();
+  const subjectOptions=Object.keys(NOTE_URLS).map(id=>`<option value="${id}" ${id===subject?'selected':''}>${SUBJNAME[id]}</option>`).join("");
+  const sectionOptions=state.listen.sections.map((item,index)=>`<option value="${index}" ${index===state.listen.section?'selected':''}>${index+1}. ${escapeHTML(item.title)}</option>`).join("");
+  document.getElementById("stage").innerHTML=`<div class="card">
+    <div class="tags"><span class="tag subj" style="background:${SUBJCOLOR[subject]};color:#0b1020">${SUBJNAME[subject]}</span><span class="tag">Listen to notes</span></div>
+    <div class="listen-grid">
+      <div class="listen-panel">
+        <label for="listenSubject">Subject</label><select id="listenSubject">${subjectOptions}</select>
+        <label for="listenSection">Section</label><select id="listenSection">${sectionOptions}</select>
+        <label for="listenVoice">Voice</label><select id="listenVoice"></select>
+        <label for="listenRate">Pace: <b id="listenRateValue">${+(settings.listenRate||0.85).toFixed(2)}×</b></label>
+        <input id="listenRate" type="range" min="0.65" max="1.15" step="0.05" value="${settings.listenRate||0.85}">
+        <label class="toggle-row"><input id="listenAuto" type="checkbox" ${settings.listenAuto===false?'':'checked'}> Continue to the next section</label>
+        <div class="listen-controls">
+          <button class="btn" id="listenPrev" title="Previous section" aria-label="Previous section">◀</button>
+          <button class="btn primary" id="listenPlay" aria-label="Play or pause">▶ Play</button>
+          <button class="btn" id="listenStop" title="Stop" aria-label="Stop">■</button>
+          <button class="btn" id="listenNext" title="Next section" aria-label="Next section">▶|</button>
+        </div>
+        <div class="listen-status" id="listenStatus"></div>
+      </div>
+      <div class="listen-panel">
+        <h2 class="listen-title">${escapeHTML(section.title)}</h2>
+        <div class="listen-text">${escapeHTML(section.text)}</div>
+      </div>
+    </div>
+  </div>`;
+  fillVoiceOptions();
+  document.getElementById("listenSubject").onchange=e=>{ state.subject=e.target.value; renderSubjects(); loadListenNote(e.target.value); };
+  document.getElementById("listenSection").onchange=e=>{ stopListening(); state.listen.section=+e.target.value; renderListen(); };
+  document.getElementById("listenVoice").onchange=e=>{ const data=store.get(); data.listenVoice=e.target.value; store.set(data); if(state.listen.playing) speakCurrentSection(); };
+  document.getElementById("listenRate").oninput=e=>{ document.getElementById("listenRateValue").textContent=(+e.target.value).toFixed(2)+"×"; const data=store.get(); data.listenRate=+e.target.value; store.set(data); };
+  document.getElementById("listenAuto").onchange=e=>{ const data=store.get(); data.listenAuto=e.target.checked; store.set(data); };
+  document.getElementById("listenPlay").onclick=toggleListening;
+  document.getElementById("listenStop").onclick=()=>{ stopListening(); updateListenControls(); };
+  document.getElementById("listenPrev").onclick=()=>changeListenSection(-1);
+  document.getElementById("listenNext").onclick=()=>changeListenSection(1);
+  updateListenControls();
+  updateListenStats();
+}
+
+function updateListenControls(message){
+  const button=document.getElementById("listenPlay");
+  if(button) button.textContent=state.listen.playing&&!state.listen.paused?"Ⅱ Pause":"▶ Play";
+  const status=document.getElementById("listenStatus");
+  if(status) status.textContent=message || (state.listen.playing?`Reading part ${Math.min(state.listen.chunk+1,state.listen.chunks.length)} of ${state.listen.chunks.length}`:"Ready");
+}
+
+function updateListenStats(){
+  const total=state.listen.sections.length, current=state.listen.section+1;
+  document.getElementById("poslabel").textContent="Section";
+  document.getElementById("pos").textContent=current;
+  document.getElementById("total").textContent=total;
+  document.getElementById("score").textContent="—";
+  document.getElementById("streak").textContent="—";
+  document.getElementById("best").textContent=state.best;
+  document.getElementById("pbar").style.width=(total?current/total*100:0)+"%";
 }
 
 /* ---- Numerical practice mode ---- */
@@ -1263,6 +1512,7 @@ function renderProgress(){
 /* Mode toggle */
 function setMode(m){
   if(state.mode==="exam" && m!=="exam"){ stopExamTimer(); state.exam=null; }
+  if(state.mode==="listen" && m!=="listen") stopListening();
   state.mode=m;
   document.querySelectorAll("#mode button").forEach(x=> x.classList.toggle("active", x.dataset.mode===m));
   buildOrder(); render();
@@ -1296,6 +1546,7 @@ document.getElementById("reset").onclick = (e)=>{
 };
 
 /* init */
+if("speechSynthesis" in window){ refreshVoices(); speechSynthesis.onvoiceschanged=refreshVoices; }
 buildOrder();
 renderSubjects();
 render();
