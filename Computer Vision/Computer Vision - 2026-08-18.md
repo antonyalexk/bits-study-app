@@ -36,7 +36,7 @@
 | L6 | Detection: IoU/AP/mAP, **R-CNN** family, **YOLO**, NMS | ✅ | EC3 |
 | L4 | Deep learning: **CNN**, pretrained backbones & transfer learning | ✅ | EC3 |
 | L5 | Custom CNN design, training, regularisation & honest evaluation | ✅ | EC3 |
-| — | Vision Transformers (**ViT**) | ▶ | EC3 |
+| L9 | Vision Transformers (**ViT**): patch tokens, self-attention, DeiT/Swin/DINO, DETR | ✅ | EC3 |
 | — | Self-supervised: **SimCLR, DINO, MoCo** | ▶ | EC3 |
 
 ### 📋 Evaluation
@@ -524,14 +524,64 @@ Lecture 5's controlled comparison gives the reusable decision rule:
 > ⚠️ **The split is part of the result.** Report macro/per-class metrics for imbalanced classes and benchmark latency at the actual deployment batch size and hardware.
 
 ### 7.9 Vision Transformers (ViT) 🎯
-Split the image into **patches** → linear-embed + positional encoding → **self-attention** across all patches.
+Lecture 9's one idea: **make an image look like a sentence** — replace the convolutional backbone with a Transformer encoder. Detection/segmentation heads and metrics (AP, mIoU) from L6–L8 carry over unchanged: *a detector on a ViT backbone is still a detector.*
+
+**1. Image → sequence of tokens (patchify).**
+- Cut the image into non-overlapping **patches** (ViT-B/16 ⇒ 16×16). For 224×224: $224/16 = 14$, so $14\times14 = 196$ patches.
+- Each patch holds $16\times16\times3 = 768$ raw values; $196\times768 = 150{,}528$ = exactly the original pixel count, so patchifying only **regroups** pixels.
+- One learned linear map (implemented as a single convolution) projects each patch to a **768-dim token**. The two 768s are unrelated (raw pixels vs model width).
+- Prepend one learned **class token** ⇒ **197 tokens**. Token count: $N = (H/P)(W/P) + 1$.
+
+**2. Position is added, not free.** Attention is a **set operation** — shuffle the tokens and it returns the same answer. So ViT **adds** a learned positional embedding to each token's content (added, *not* concatenated). *A convolution gets position for free; attention has to be told.*
+
+**3. Self-attention = Q, K, V from one input.** Each token is projected by three learned matrices: **Q** (query = what I'm looking for), **K** (key = what I am), **V** (value = what I carry). *Self* = all three come from the same tokens. Score every pair, scale, softmax into weights summing to 1, output a **weighted average of the values**:
+```math
+\text{Attention}(Q,K,V)=\operatorname{softmax}\!\left(\frac{QK^{\top}}{\sqrt{d}}\right)V.
+```
+- **Why $\sqrt{d}$** (per-head dim, 64)? It keeps scores off softmax's flat tails → avoids vanishing gradients. **Softmax** turns raw scores into a fixed **budget** shared across the row.
+
+**4. Multi-head attention.** ViT-B splits 768 dims into **12 heads of 64**; each head has its own Q/K/V so each can track something different (texture, position, background). Outputs are concatenated and mixed by one linear layer.
+
+**5. Shapes through one block (ViT-B/16, 224²).** Tokens $197\times768$ in and out. Per head Q,K,V are $197\times64$; the **scores are $197\times197$** — the only quadratic thing. The per-token MLP widens $768\to3072\to768$. One block = **LayerNorm → attention → residual → LayerNorm → MLP → residual**, repeated **12×**.
+- **LayerNorm, not BatchNorm:** LN normalises each token across its own features, so batch size stops mattering (BN would make one image depend on its batch-mates).
+
+**6. Cost is quadratic in tokens → patch size is the real knob.** 🎯 Every token attends to every token, so cost $\propto N^2$. **Halving the patch ≈ 16× the attention bill**; one token per pixel is impossible, not just expensive. Smaller patch = finer detail but far costlier.
+
+**7. No pooling at all.** ResNet-50 halves its map 5× (224→7); ViT emits **one fixed shape** from all 12 blocks — resolution is decided once by the patch. **Swin** puts a pyramid/windowed attention back for dense tasks.
+
+**8. Inductive bias — the central trade-off.** 🎯 A convolution is **told** that neighbours belong together and that a pattern means the same thing anywhere (locality + translation equivariance). A transformer is **told almost nothing**. *An assumption that is true saves you examples; one that is wrong costs you accuracy* — so ViT's freedom is **paid for in data**.
+- **Equivariance, formally:** convolution is **translation-equivariant**; attention is **permutation-equivariant**. Neither is stronger — they guarantee different things.
+- **Receptive field:** a ResNet's first conv reaches 7px (fixed); a **ViT's first block already averages ~109px** on a 224 image (~16× further), though its narrowest head sits ~23px so it also learns locality. The CNN's field *grows* with depth (7→427px); the ViT opens wide and *refines*.
+
+**9. Data requirement (measured in Lecture 9).** 🎯
+| Setting | ViT | CNN | Note |
+|---|---|---|---|
+| Pretrained, 10-class subset | **ViT-B/16 89.2%** | ResNet-50 85.0% | ViT +4.2 pts but 3.6× time, 3.4× params |
+| Transformer at ResNet size | Swin-T 84.5% | — | family matters less than the size you can afford |
+| **No pretraining, small data** | **46.2%** | **84.1%** | 38-pt gap — the conv assumption is worth real data |
+- The original ViT needed ~**303M images** (≈237× ImageNet-1k, private) to beat a ResNet; on 1.3M images the CNN was still ahead.
+
+**10. Fixing the data hunger (all 2021).**
+- **DeiT** — add a **distillation token** trained to match a **CNN teacher**; hands the transformer the bias it lacked ⇒ ViT accuracy from 1.3M images, no private dataset.
+- **Swin** — **windowed attention + pyramid** → puts locality back; drop-in backbone at ResNet size.
+- **DINO** — **self-distillation, no labels, no negatives**; frozen features reach 78.3% by k-NN, attention maps show emergent object segmentation.
+
+**11. Where ViTs turn up downstream.**
+- **DETR** — detection as **direct set prediction**: a transformer emits a fixed set of boxes in parallel, **bipartite matching** pairs each to one ground truth, duplicates are penalised by the loss ⇒ **no anchors, no NMS** (the L6 post-processing stage disappears).
+- **SegFormer / Mask2Former** swap the backbone; **SAM's image encoder (L8) is a ViT**. Heads and metrics from L6–L8 don't change.
+
+> 🎯 **Likely exam shapes:** (1) **count tokens / attention entries** — 384² image, patch 16, +class token: $(384/16)^2+1 = 577$ tokens, attention matrix $577\times577$ per head (vs $197\times197$ at 224², so cost scales with $N^2$). (2) Explain **why ViT needs more data than a CNN** (weak inductive bias). (3) **CNN vs ViT**: receptive field, translation vs permutation equivariance, efficiency. (4) Describe **Q,K,V scaled dot-product attention** and the role of $\sqrt{d}$ and softmax.
+
+> ⚠️ **Traps:** position is **added** to content, not concatenated; the softmax scale is **$\sqrt{d}$** (per-head 64), not $\sqrt{768}$; the quadratic term is **tokens², not pixels²**; the patch size fixes the token count (ViT-16 vs ViT-32 — you can't change it freely); ViT is **permutation**-equivariant, *not* translation-equivariant.
+
 | | **CNN** | **ViT** |
 |--|--------|---------|
 | Receptive field | **local** (grows with depth) | **global** from layer 1 (attention) |
-| Inductive bias | strong (locality, translation invariance) | weak → needs **more data** |
-| Efficiency | more efficient on small/medium data | attention is $O(N^2)$ in #patches → heavier |
+| Inductive bias | strong (locality, translation equivariance) | weak → needs **more data** |
+| Efficiency | more efficient on small/medium data | attention is $O(N^2)$ in #tokens → heavier |
 | Long-range deps | via many layers | **self-attention** directly models them |
-| Translation invariance | **more** (weight sharing + pooling) | less built-in |
+| Equivariance | **translation**-equivariant | **permutation**-equivariant |
+| Normalisation | BatchNorm common | **LayerNorm** (batch-independent) |
 
 ### 7.10 Self-supervised learning (EC3)
 Learn representations from **unlabelled** images via pretext tasks:
@@ -586,7 +636,7 @@ The 12-Sep lecturer tutorial says to expect roughly **3–4 numerical questions*
 - **Custom CNN:** params $=K_hK_wC_{in}C_{out}+C_{out}$; pick depth for receptive-field reach, then width for budget; two $3\times3$ layers cost $18C^2$ vs one $5\times5$ at $25C^2$; GAP keeps the head small.
 - **Training:** BatchNorm uses batch stats in training/running stats at inference; sweep LR by decades; high train error = underfit, train–validation gap = overfit; regularise the gap, not inability to fit.
 - **Evaluation:** augmentation must preserve labels; select on validation, test once; group near-duplicates before splitting. The split is part of the result.
-- **ViT:** patches + self-attention → global RF, needs more data; CNN more translation-invariant & efficient.
+- **ViT:** image→**patches** (224/16 ⇒ 14×14=196 +1 class = **197 tokens**), linear-embed, **add** learned position; **self-attention** $\operatorname{softmax}(QK^{\top}/\sqrt d)V$ = weighted average of values, **12 heads of 64**, cost **$O(N^2)$ in tokens** (patch size is the knob). No pooling (**Swin** restores it); **LayerNorm**. Weak inductive bias ⇒ **needs lots of data** (pretrain / DeiT distillation / DINO); conv **translation**-equivariant vs ViT **permutation**-equivariant; layer-1 RF ~109px. **DETR** = set prediction, no anchors/NMS.
 - **Self-supervised:** SimCLR (contrastive, big batch), MoCo (momentum + queue), DINO (self-distillation, no negatives).
 
 ---
@@ -620,6 +670,9 @@ The 12-Sep lecturer tutorial says to expect roughly **3–4 numerical questions*
 26. Semantic vs **instance** segmentation: which one separates person 1 from person 2? *(Instance — semantic gives every person the same label; instance adds unique ids.)*
 27. Why use a **dilated** convolution instead of a larger kernel, and what's the cost? *(Larger field of view at constant parameters; cost = it skips pixels/approximates, so tune the rate or small objects are missed.)*
 28. Write **IoU** and **Dice** for masks with intersection 20, pred 50, truth 30. *(IoU $=20/60=0.33$; Dice $=40/80=0.5$.)*
+29. A ViT takes a 384×384 image with patch size 16 and a class token. How many tokens does the encoder see, and how big is one head's attention matrix? **Answer:** $(384/16)^2+1 = 577$ tokens; attention is $577\times577$.
+30. Why does a ViT need far more training data than a CNN of similar size? *(Weak inductive bias — it is not told locality or translation equivariance, so it must learn them from data; pretraining, DeiT distillation, or DINO supply that.)*
+31. In scaled dot-product attention, why divide by $\sqrt{d}$ and what does softmax do? *(The $\sqrt{d}$ keeps scores off softmax's flat tails to avoid vanishing gradients; softmax turns a row of scores into weights summing to one — a budget — and the output is the weighted average of the values.)*
 
 ---
 
@@ -627,6 +680,7 @@ The 12-Sep lecturer tutorial says to expect roughly **3–4 numerical questions*
 Append a dated `### Update Log — YYYY-MM-DD` below with each new lecture; add rows to the Syllabus map. Likely upcoming (per EC3): optical flow/tracking, stereo & depth, image captioning/VLMs, diffusion/generative vision, agentic vision (course finale).
 
 ## Update Log
+- **2026-10-03 (Lecture 9 — Vision Transformers)** — Expanded **§7.9 ViT** into a full lecture from the Oct-3 slides and transcript: image→patch tokens (224/16 ⇒ 197 tokens), learned **added** positional embedding, the **class token** vs mean-pooling, **Q/K/V** scaled dot-product attention $\operatorname{softmax}(QK^{\top}/\sqrt d)V$ with the $\sqrt d$/softmax rationale, **12 heads of 64**, per-block shapes (197×768, scores 197×197, MLP 3072), **$O(N^2)$-in-tokens** cost (patch size is the knob), no pooling (**Swin** restores it), **LayerNorm vs BatchNorm**, **inductive bias** and **translation- vs permutation-equivariance**, layer-1 receptive field (~109px vs 7px), measured **data-hunger** numbers (pretrained 89.2% vs 46.2% from scratch; ~303M-image original), **DeiT/Swin/DINO** fixes, and downstream **DETR** (set prediction, no anchors/NMS). Confirmed the actual **EC-2R** regular mid-sem (14/03/2026) matches the recorded EC2 signal; added ViT exam shapes/traps, cheat-sheet and self-test items; marked ViT ✅ (L9) in the syllabus map.
 - **2026-09-16** — Audited mathematical readability and correctness. Distinguished centred projection coordinates from pixels, stated sampling assumptions, defined Harris and mean-shift symbols, completed segmentation/detection metrics and losses, and expanded anchor, YOLO, NMS and convolution-parameter formulas with interpretations.
 - **2026-09-12** — Integrated Lectures 7–8, the full numerical tutorial, the 12-Sep transcript, and exact EC2/EC3 papers. Added the output-first semantic/instance/panoptic mental model; U-Net vs DeepLab mechanism and evidence; Dice↔IoU conversion, imbalance-aware losses, boundary evaluation; Mask R-CNN, RoI Align, mask AP and SAM; the complete numerical drill ladder; and paper-derived question recognition/solving patterns.
 - **2026-09-06 (Segmentation lecture)** — Expanded **Segmentation** into a full section: the classification→detection→segmentation task ladder, **semantic vs instance**, the **segmentation-CNN anatomy** (dilated conv + upsampling, no FC head), **dilated / atrous convolution** (larger field of view at constant parameters; rate tuning for object size), **U-Net (single rate) vs DeepLab (multiple parallel rates)**, and pixel-level evaluation — **IoU / Dice (DSC) / pixel & voxel accuracy** with foreground-vs-boundary and instance-overlap notes. Added cheat-sheet, syllabus-map, and self-test items.
