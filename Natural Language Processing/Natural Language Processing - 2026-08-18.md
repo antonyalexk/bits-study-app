@@ -1,7 +1,7 @@
 # Natural Language Processing (AIML ZG530) — Master Study Notes
 
-> **Course:** AIML ZG530 · BITS Pilani WILP · **Faculty:** Prof. Chandra Prakash Manglani
-> **Notes updated:** 2026-09-16 · **Primary text:** Jurafsky & Martin, *Speech and Language Processing* (3rd ed. draft)
+> **Course:** AIML ZG530 · BITS Pilani WILP · **Faculty:** Prof. Shakshi Sharma (from Session 9; Sessions 1–8 Prof. Chandra Prakash Manglani)
+> **Notes updated:** 2026-10-04 · **Primary text:** Jurafsky & Martin, *Speech and Language Processing* (3rd ed. draft)
 > **Status:** Living document — append new sessions under *"Update Log"* and extend the topic map.
 
 ## How to use this note
@@ -44,13 +44,13 @@ flowchart LR
 |---|--------|:---:|:---:|
 | S1 | Intro, applications, ambiguity, morphology | ✅ | — |
 | — | Text preprocessing: tokenization, stemming, lemmatization, regex, edit distance | ✅ | EC2 |
-| — | **POS tagging**: HMM, Forward, Viterbi | ✅ | EC2/EC3 |
+| — | **POS tagging**: HMM, Forward, Viterbi, **MEMM** | ✅ | EC2/EC3 |
 | S4 | **N-gram language models**, smoothing, perplexity | ✅ | EC2/EC3 |
 | S2 | **Vector semantics**: BoW, **TF-IDF**, cosine | ✅ | EC2/EC3 |
 | S2 | **Word embeddings**: word2vec (skip-gram/CBOW), analogies | ✅ | EC2/EC3 |
 | S5 | **Neural language models**: perceptrons, hidden layers, embeddings, softmax, training | ✅ | — |
 | — | **NER**, text classification (Naïve Bayes), sentiment | ✅ | — |
-| — | **Parsing**: CFG/**PCFG**, constituency/dependency; **WSD (Lesk)** | ▶ | EC3 |
+| S9 | **Parsing**: CFG, top-down/bottom-up, **chart parsing**, **PCFG**; **WSD (Lesk)** | ✅ | EC3 |
 | S5 | **LLMs**: pretraining, prompting, transfer learning, LoRA/QLoRA | ✅ | EC3 |
 | — | **Transformers**, BERT/GPT, **RAG** | ▶ | EC3 |
 
@@ -355,11 +355,41 @@ After filling the trellis:
 
 💡 **HMM ⇄ POS in action** — *"The boy eats pizza"* (4 observations): **Forward** returns $P(\text{sentence})$; **Viterbi** returns the best tag sequence (e.g. DT NN VBZ NN) — the tagging you actually ship.
 
+### 4.3 MEMM — adding features to the tagger (Session 9) 🎯
+HMM taggers hit three walls: **(1) sparsity** — higher-order tag contexts (trigram/4-gram over PTB's ~45 tags on a 1M-word corpus) are mostly unseen, so counts are unreliable and need smoothing; **(2) limited context** — a bigram HMM sees only the **previous tag**; **(3) no features** — HMM squeezes everything into just transition and emission probabilities, so useful *clues* (a word is **Capitalised** → likely `NNP`; ends in **-ed** → likely past-tense verb; a verb is unlikely right after `the`) have no clean place.
+
+A **Maximum-Entropy Markov Model (MEMM)** scores a tag from a **heterogeneous feature set** (previous tag, current/next word, suffix, capitalisation, …). It is built on **logistic regression** — whose older name *is* the **maximum-entropy model** (multinomial logistic regression).
+
+| | **HMM** | **MEMM** |
+|--|--------|----------|
+| Type | **generative** (models $P(W,T)$) | **discriminative** (models $P(T\mid W)$ directly) |
+| Evidence | transition × emission only | arbitrary overlapping **features** |
+| Per-tag score | $P(w_i\mid t_i)\,P(t_i\mid t_{i-1})$ | $P(t_i\mid t_{i-1},w_i,\text{features})$ via softmax |
+
+- **Decoding = greedy, left-to-right:** at each position pick the single best tag given the word window and the tags **already chosen**, then **fix it** and move on. ⚠️ **Limitation:** a greedy choice can't be revised — if an early tag is wrong, later evidence can't repair it (whole-sentence search like Viterbi/beam could, at higher cost).
+
 ---
 
 ## 5 · Parsing & Word Sense Disambiguation (EC3) 🎯
 
-### 5.1 CFG & PCFG
+### 5.1 Grammars & parsing algorithms (Session 9) 🎯
+Tagging labels each **word**; **parsing** finds the **structure** of the whole sentence — how words group into **phrases/constituents** (noun phrase **NP**, verb phrase **VP**, …) that act as one unit. *"[The old man] [smiled]"* = NP + VP.
+
+- **Why it's hard = structural ambiguity:** one sentence can group more than one way, each a different meaning. *"I saw the man with the telescope"* has **two parses** (I used the telescope / the man had it). Each complete grouping is one **parse**.
+- **CFG = 4-tuple $(N,\Sigma,R,S)$:** non-terminals $N$ (phrase labels, e.g. NP, VP), terminals $\Sigma$ (actual words), production rules $R$ (each $A\to\beta$), start symbol $S$. "Context-free" = every rule has a **single** non-terminal (the *mother*) on the left.
+- **Tools (no hand-rolled grammar needed):** **NLTK** (you write the rules; bottom-up, bottom-up-chart, top-down-chart parsers; supports PCFG), **spaCy** (fast ready-trained **dependency** parser), **Stanza** (Stanford constituency + dependency).
+
+**Two directions (same grammar, same tree, same result — different search):**
+| | **Top-down** | **Bottom-up** |
+|--|-------------|---------------|
+| Build from | start symbol $S$ → leaves | words → combine up to $S$ |
+| Applies rules | left side → right side | right side → left side |
+| Wastes work on | trees that never match the words | sub-trees that never reach $S$ |
+
+- **Parsing as search:** keep a **possibilities list**; repeatedly pop a state, expand every applicable rule, push the results. **DFS** uses a **stack (LIFO)** — follow one interpretation until it fails, then **backtrack** (less memory, the common choice); **BFS** uses a **queue (FIFO)** — expand all interpretations in parallel.
+- **Chart parsing** avoids re-doing work: a **chart** stores partial results. Partially-matched rules are **active arcs** written with a **dot** marking progress, e.g. `NP → ART • ADJ N` (seen ART, expecting ADJ N). **Top-down chart parsing** is *predictive* — it only adds arcs for rules that could extend the current goal, so impossible categories of an ambiguous word are never explored.
+
+### 5.2 CFG & PCFG
 - **CFG** = terminals, non-terminals, start symbol, production rules. **Constituency** parse = phrase tree; **Dependency** parse = head–dependent links.
 - **PCFG** = CFG with a probability on each rule (rules for a non-terminal sum to 1). 🧮 **Parse probability = product of all rule probabilities used.** 💡 Probabilistic grammars **resolve ambiguity** by preferring the highest-probability parse (deterministic grammars can't rank multiple valid parses).
 
@@ -376,7 +406,7 @@ P(\mathrm{parse})
 ```
 Every fired rule appears once in the product; repeated rules appear with a power. A numerical total requires the missing lexical probabilities. If NP→Det N changes from 0.6 to 0.4 while everything else stays fixed, multiply the old parse probability by $(0.4/0.6)^2=4/9$.
 
-### 5.2 Word Sense Disambiguation — Simplified Lesk 🎯
+### 5.3 Word Sense Disambiguation — Simplified Lesk 🎯
 Pick the sense whose **dictionary gloss** (signature) overlaps most with the **context words** of the target.
 1. **Context** = content words around the target in the sentence.
 2. **Signature** = words in each sense's gloss/definition (from **WordNet** synsets).
@@ -529,6 +559,8 @@ Treat (`bank`,`located`) as positive $y=1$ and (`bank`,`purple`), (`bank`,`rain`
 - **Neural LM:** context embeddings → hidden layer → vocabulary logits → softmax; train with cross-entropy and backprop. Fixed $E$ needs less data; trainable $E$ learns domain-specific embeddings.
 - **HMM POS:** tagsets = Brown / **PTB (36)** / **UPOS (17)**. $\hat T=\arg\max_T P(W|T)P(T)$: **lexical** emission $P(w_i|t_i)$ × **contextual** transition $P(t_i|t_{i-1})$. **3 problems:** Likelihood→**Forward** (Σ), Decoding→**Viterbi** (max + backpointers), Learning→**Baum–Welch**.
 - **HMM trellis (Forward/Viterbi):** states × observations grid + initial node; DP collapses the $N^T$ paths into **$O(N^2T)$**. **Forward** sums incoming paths → likelihood; **Viterbi** takes the max + stores a **back pointer** per node, then **backtraces** from $\max_j v_T(j)$ to read off the best tag sequence.
+- **MEMM:** **discriminative** (models $P(T|W)$) vs HMM **generative**; logistic-regression / max-entropy over **features** (prev tag, word, suffix, capitalisation); **greedy** left-to-right decoding can't revise an early tag.
+- **Parsing:** find sentence **structure** (phrases NP/VP), not just tags. **CFG** $(N,\Sigma,R,S)$. **Top-down** ($S$→words, predictive) vs **bottom-up** (words→$S$). Parsing-as-search: **DFS=stack**, **BFS=queue**, + backtrack. **Chart parsing** stores partial results as **active arcs** (dotted rules) to avoid recomputation.
 - **PCFG:** parse prob = **product of rule probs**; probabilistic grammars rank ambiguous parses.
 - **Lesk WSD:** max overlap of context words with each sense's gloss signature.
 - **Naïve Bayes:** $\arg\max_c P(c)\prod P(w_i|c)$, add-1 smoothing, bag-of-words.
@@ -558,6 +590,12 @@ Treat (`bank`,`located`) as positive $y=1$ and (`bank`,`purple`), (`bank`,`rain`
 18. In Viterbi, why is a **back pointer** stored at each node, and how is the tag sequence recovered? *(The max-prob alone gives no path; back pointers record the winning predecessor, then you backtrace from $\max_j v_T(j)$ to $t{=}1$.)*
 19. **Forward vs Viterbi:** which single operation differs, and what does each output? *(Forward **sums** incoming paths → likelihood $P(O)$; Viterbi **maxes** them → the best hidden/tag sequence.)*
 20. Why use a **trellis / DP** instead of enumerating tag sequences, and what complexity results? *(There are $N^T$ paths — exponential; the trellis reuses shared sub-paths → $O(N^2T)$.)*
+21. Give **three** reasons an HMM tagger struggles, and how a **MEMM** addresses them. *(Sparsity of high-order tag contexts, previous-tag-only context, and no feature clues; MEMM is a discriminative logistic-regression model over heterogeneous features.)*
+22. **Generative vs discriminative:** which is the HMM, which is the MEMM, and what does each model? *(HMM generative — $P(W,T)$; MEMM discriminative — $P(T\mid W)$ directly.)*
+23. Why is MEMM **greedy** decoding limited, and what would fix it? *(It fixes each tag left-to-right and can't revise; whole-sentence search like Viterbi/beam could, at higher cost.)*
+24. **Top-down vs bottom-up** parsing: what does each waste work on? *(Top-down explores trees that never match the words; bottom-up builds sub-trees that never reach $S$.)*
+25. In parsing-as-search, which structure gives **DFS** vs **BFS**, and what is an **active arc**? *(Stack/LIFO = DFS, queue/FIFO = BFS; an active arc is a partially-matched rule written with a dot, e.g. `NP → ART • ADJ N`.)*
+26. Write the CFG **4-tuple** and say what "context-free" means. *($(N,\Sigma,R,S)$; every rule has a single non-terminal on the left.)*
 
 ---
 
@@ -565,6 +603,7 @@ Treat (`bank`,`located`) as positive $y=1$ and (`bank`,`purple`), (`bank`,`rain`
 Append a dated `### Update Log — YYYY-MM-DD` below per session; add rows to the Syllabus map. Likely upcoming: dependency parsing (CKY), coreference, seq2seq attention details, evaluation metrics (BLEU/ROUGE), ethics/bias in LLMs.
 
 ## Update Log
+- **2026-10-04 (Session 9 — MEMM + Grammars & Parsing; new faculty)** — Prof. Shakshi Sharma took over NLP from Session 9. Finished Session 7 with **MEMM**: HMM's three walls (sparsity, previous-tag-only context, no feature clues), the **generative→discriminative** switch, **logistic-regression / maximum-entropy** scoring over heterogeneous features, and **greedy left-to-right decoding** with its no-revision limitation. Added **§5.1 Grammars & parsing algorithms**: constituents/phrases, structural ambiguity ("I saw the man with the telescope"), the CFG **4-tuple**, **top-down vs bottom-up**, **parsing-as-search** (DFS=stack / BFS=queue + backtracking), **chart parsing** with dotted **active arcs**, and the NLTK/spaCy/Stanza tools; renumbered PCFG→§5.2 and Lesk→§5.3. Cheat-sheet, self-test and syllabus map updated.
 - **2026-09-16** — Audited mathematical readability and correctness. Stated edit costs and boundary/log conventions, separated full-softmax Skip-gram from negative sampling, defined its binary cross-entropy loss, made HMM symbols/backpointers explicit, and replaced incomplete Laplace and PCFG arithmetic with convention-aware worked forms.
 - **2026-09-14** — Integrated the annotated Session 1, annotated Session 8 recap, 13-Sep transcript, syllabus image and five-question sample mid-sem paper. Added the six levels of language analysis, an ambiguity recognition rule, a fully worked Skip-gram negative-sampling update, and an exam-ready answer plan for application mapping, unigram-vs-bigram ranking, neural architecture diagrams, exact TF-IDF conventions and weight updates. The recap scope ends at HMM Forward/Viterbi; later EC3 material remains clearly identified as later paper scope.
 - **2026-09-12** — Mined the exact EC2 and EC3 papers. Added a trigger→concept→first-move→trap decoder, exact question/marks maps, an exam-time solve order, and a memory chain linking counts, embeddings, HMMs, PCFGs, retrieval and generation. No later-topic claim was inferred from the papers beyond what they directly ask.

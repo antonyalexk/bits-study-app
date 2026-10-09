@@ -1,7 +1,7 @@
 # Deep Reinforcement Learning (AIML ZG512) — Master Study Notes
 
 > **Course:** AIML ZG512 · BITS Pilani WILP · **Faculty:** Prof. A. A. Nippun Kumaar
-> **Notes updated:** 2026-09-16 · **Primary text:** Sutton & Barto, *Reinforcement Learning: An Introduction* (2nd ed.)
+> **Notes updated:** 2026-10-04 · **Primary text:** Sutton & Barto, *Reinforcement Learning: An Introduction* (2nd ed.)
 > **Status:** Living document — append new sessions under *"Update Log"* and extend the topic map.
 
 ## How to use this note
@@ -36,7 +36,7 @@ flowchart LR
 | S2–3 | **Multi-armed Bandits** (action-value, ε-greedy, UCB, optimistic init) | ✅ | EC2/EC3 |
 | S4–6 | **MDPs** + reward design + Bellman + **Dynamic Programming** (policy/value iteration) | ✅ | EC2/EC3 |
 | S7–8 | **Monte Carlo** (first-visit eval, ε-greedy control, off-policy / importance sampling) | ✅ | **EC2** |
-| S9 | **Temporal-Difference** (TD(0), SARSA, Q-learning) | ✅ intro | EC2 intro / EC3 |
+| S9 | **Temporal-Difference** (TD(0), SARSA, Q-learning, **Expected SARSA, double learning, n-step**) | ✅ | EC2 intro / EC3 |
 | — | **Function approximation** (linear, semi-gradient TD) | ▶ | EC3 |
 | — | **Deep RL**: DQN, policy gradients, actor–critic | ▶ | later |
 
@@ -424,7 +424,26 @@ Q(S_t,A_t) \leftarrow Q(S_t,A_t) + \alpha\big[R_{t+1} + \gamma \max_{a'} Q(S_{t+
 
 ✍️ **SARSA numeric (EC3):** apply the update along a given trajectory in order; with α and γ given, each transition nudges $Q(S,A)$ toward $R + \gamma Q(S',A')$. **Yes, bootstrapping influences it** — the target contains the estimate $Q(S',A')$.
 
-- **Expected SARSA:** replace $Q(S',A')$ with $\sum_{a}\pi(a\mid S')Q(S',a)$ (lower variance).
+✍️ **Q-learning numeric:** on a trajectory with $\alpha$ and $\gamma=0.9$, a bad terminal propagates its penalty one step at a time — e.g. from $Y$, taking *right* lands in $Z$ with $Q(Z,\cdot)=-100$, so $Q(Y,\text{right})\leftarrow 0+1\cdot[0+0.9(-100)-0]=-90$. After a few sweeps the penalty backs up and the agent learns to avoid $Z$. ⚠️ Ties in $\max_a Q$ are broken **randomly**. EC3 is **open book**, so you won't memorise the formula — but you must know which symbol is $S,S',A,R,\alpha,\gamma$ to substitute correctly.
+
+### 4.3 Expected SARSA & maximization bias 🎯
+- **Expected SARSA:** replace the sampled $Q(S',A')$ with its **expectation under the policy**:
+```math
+Q(S_t,A_t)\leftarrow Q(S_t,A_t)+\alpha\Big[R_{t+1}+\gamma\sum_{a}\pi(a\mid S_{t+1})Q(S_{t+1},a)-Q(S_t,A_t)\Big].
+```
+Averaging over the policy (instead of one sampled action) **removes the variance** from the choice of $A'$; with a greedy target it coincides with Q-learning. ⚠️ The policy need not be equiprobable — weight each action by $\pi(a\mid S')$ (equiprobable is just the common classroom case).
+- **Maximization bias** ⚠️: Q-learning and Expected SARSA take a **max over estimated** $Q$. Early in training those estimates are noisy, so **$\max$ also maximises the noise** → a systematic **overestimate** (a mediocre action looks best because its estimate happened to spike).
+- **Double learning** (fix): keep **two value tables** $Q_1,Q_2$ — use **one to pick** the greedy action and the **other to evaluate** it, so selection noise and evaluation noise stay independent and don't compound. Double Q-learning applies this to $Q$-learning.
+
+### 4.4 n-step TD — between TD(0) and Monte Carlo 🎯
+TD(0) looks **one** step ahead; Monte Carlo waits for the **whole** episode. **n-step TD** uses the next $n$ real rewards, then bootstraps:
+```math
+G_{t:t+n}=R_{t+1}+\gamma R_{t+2}+\cdots+\gamma^{n-1}R_{t+n}+\gamma^{n}V(S_{t+n}),
+\qquad
+V(S_t)\leftarrow V(S_t)+\alpha\big[G_{t:t+n}-V(S_t)\big].
+```
+- $n=1$ → **TD(0)**; $n\to\infty$ (to episode end) → **Monte Carlo**. Intermediate $n$ often learns fastest.
+- 💡 The single knob $n$ trades **bias** (small $n$, more bootstrapping) against **variance** (large $n$, more real reward).
 
 ---
 
@@ -480,6 +499,7 @@ The webinar implemented RL *elements* (no learning algorithm yet) in **Gymnasium
 - **MC:** average actual returns; needs full episodes; **no bootstrap**. First-visit vs every-visit. *Recipe:* per state, sum rewards from its **first occurrence to episode end**, then average over episodes (worked grid: $V_B{=}8,V_C{=}4,V_E{=}{-}2,V_D{=}10,V_A{=}{-}10$). **Off-policy MC:** reweight returns by $\rho=\prod\pi/b$ — ordinary IS unbiased/high-variance, weighted IS biased/bounded.
 - **Policy iteration:** evaluate a *fixed* policy (no $\max$) → improve by $\arg\max$ → repeat. **Policy converges before the values → stop when the policy stops changing.**
 - **TD(0):** $V(S)\!\leftarrow\!V(S)+\alpha[R+\gamma V(S')-V(S)]$. **SARSA** (on-policy, $Q(S',A')$) vs **Q-learning** (off-policy, $\max_a Q(S',a)$).
+- **Expected SARSA:** target uses $\sum_a\pi(a|S')Q(S',a)$ (averages over policy → lower variance). **Maximization bias:** $\max$ over noisy estimates overestimates → **double learning** (two $Q$ tables: one selects, one evaluates). **n-step TD:** $G_{t:t+n}=\sum_k\gamma^kR+\gamma^nV(S_{t+n})$; $n{=}1$→TD(0), $n{\to}\infty$→MC.
 - **Linear FA semi-gradient TD:** $\mathbf w\!\leftarrow\!\mathbf w+\alpha[R+\gamma\mathbf w^\top\mathbf x(S')-\mathbf w^\top\mathbf x(S)]\mathbf x(S)$.
 - **Deep RL:** DQN (replay + target net), REINFORCE (policy gradient), Actor–Critic (advantage).
 
@@ -511,6 +531,9 @@ The webinar implemented RL *elements* (no learning algorithm yet) in **Gymnasium
 21. Both B and E lead into C, yet $V(B)=8$ and $V(E)=-2$. What limitation of MC does this expose? *(It evaluates each state separately and ignores shared transition structure → slow / data-hungry.)*
 22. In **policy iteration**, why can you stop before the values converge? **Answer:** The greedy policy usually stabilizes first; once $\arg\max$ stops changing, $\pi$ is optimal even if the numbers still move.
 23. Ordinary vs weighted **importance sampling** for off-policy MC: which is unbiased, which has bounded variance? *(Ordinary = unbiased / high-variance; weighted = biased / bounded-variance.)*
+24. Why does Q-learning **overestimate** action values early in training, and what fixes it? *(Maximization bias — max over noisy estimates; **double learning** uses two $Q$ tables, one to select and one to evaluate.)*
+25. Write the **n-step return** $G_{t:t+n}$ and say what $n=1$ and $n\to\infty$ correspond to. *(TD(0) and Monte Carlo.)*
+26. **Expected SARSA** vs SARSA: what does the target replace, and why lower variance? *(Replaces the sampled $Q(S',A')$ with $\sum_a\pi(a|S')Q(S',a)$; averaging over the policy removes the action-sampling variance.)*
 
 ---
 
@@ -518,6 +541,7 @@ The webinar implemented RL *elements* (no learning algorithm yet) in **Gymnasium
 Append a dated `### Update Log — YYYY-MM-DD` below per session; add rows to the Syllabus map. Likely upcoming: n-step & TD(λ)/eligibility traces, DQN variants (Double/Dueling/PER), policy-gradient methods (REINFORCE→A2C→PPO), continuous control (DDPG/SAC), exploration methods, model-based RL.
 
 ## Update Log
+- **2026-10-04 (Session 9 — Temporal-Difference control)** — Expanded the TD section from the 4-Oct live class: added **Expected SARSA** (expectation over the policy, not an equiprobable assumption), **maximization bias** (max over noisy estimates overestimates) with its **double-learning** fix (two $Q$ tables — one selects, one evaluates), and **n-step TD** ($G_{t:t+n}$, with $n{=}1$→TD(0) and $n{\to}\infty$→MC). Added a worked **Q-learning** penalty-propagation trace ($Q(Y,\text{right})=0.9\times-100=-90$, random tie-break) and the open-book EC3 reminder to track $S,S',A,R,\alpha,\gamma$. Cheat-sheet, self-test and syllabus map updated.
 - **2026-09-16** — Audited mathematical readability and correctness. Standardized transition-dependent reward notation, defined bootstrapping, expanded the race-car Bellman backups, separated iterative from exact policy evaluation, and clarified episodic MC, importance-sampling variance, coverage and the deterministic-target break rule.
 - **2026-09-12** — Integrated the 12-Sep lecture and exact EC2/EC3 papers. Expanded MC control into an evaluation→improvement loop; separated behaviour $b$ from target $\pi$; added coverage, trajectory-ratio intuition, the backward weighted-importance-sampling algorithm ($G,W,C,Q$, greedy update and break condition), a question-recognition table, an algorithm selector, and paper-derived marks/topic maps. Confirmed the lecturer's explicit EC2 endpoint: through off-policy MC/importance sampling.
 - **2026-09-06** — Folded in the 6-Sep live class + the freshly-shared Session 1–9 slide decks and Tutorial. Added a **worked policy-iteration** pass on the race-car MDP (evaluate fixed $\pi_0$=Slow/Slow → $v=10$ → improve to Cool:Fast/Warm:Slow) with the class's key insight that **the policy converges before the values**; a **worked first-visit Monte-Carlo** grid example (the professor's exam-style A–E episodes → $V=8,4,-2,10,-10$) with the "B vs E" weakness-of-MC point; **ε-greedy MC control / exploration** (local-optimum robot grid); **off-policy MC & importance sampling** (ordinary vs weighted); and a **DP / MC / TD** comparison table. **Corrected the exam scope: EC2 mid-sem now runs up to Monte Carlo + the intro to TD** (Sessions 1–8) — syllabus map and Evaluation updated. Added cheat-sheet and self-test items.
